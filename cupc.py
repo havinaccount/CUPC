@@ -1,15 +1,54 @@
+
+#           _____                    _____                    _____                    _____          
+#          /\*   \                  /\*   \                  /\*   \                  /\    \
+#         /::\    \                /::\____\                /::\    \                /::\    \
+#        /::::\    \              /:::/    /               /::::\    \              /::::\    \       
+#       /::::::\    \            /:::/    /               /::::::\    \            /::::::\    \      
+#      /:::/\:::\    \          /:::/    /               /:::/\:::\    \          /:::/\:::\    \     
+#     /:::/  \:::\    \        /:::/    /               /:::/__\:::\    \        /:::/  \:::\    \    
+#    /:::/    \:::\    \      /:::/    /               /::::\   \:::\    \      /:::/    \:::\    \   
+#   /:::/    / \:::\    \    /:::/    /      _____    /::::::\   \:::\    \    /:::/    / \:::\    \  
+#  /:::/    /   \:::\    \  /:::/____/      /\    \  /:::/\:::\   \:::\____\  /:::/    /   \:::\    \ 
+# /:::/____/     \:::\____\|:::|    /      /::\____\/:::/  \:::\   \:::|    |/:::/____/     \:::\____\
+# \:::\    \      \::/    /|:::|____\     /:::/    /\::/    \:::\  /:::|____|\:::\    \      \::/    /
+#  \:::\    \      \/____/  \:::\    \   /:::/    /  \/_____/\:::\/:::/    /  \:::\    \      \/____/ 
+#   \:::\    \               \:::\    \ /:::/    /            \::::::/    /    \:::\    \             
+#    \:::\    \               \:::\    /:::/    /              \::::/    /      \:::\    \            
+#     \:::\    \               \:::\__/:::/    /                \::/    /        \:::\    \
+#      \:::\    \               \::::::::/    /                  \/____/          \:::\    \
+#       \:::\    \               \::::::/    /                                     \:::\    \
+#        \:::\____\               \::::/    /                                       \:::\____\
+#         \::/    /                \::/    /                                         \::/    /
+#          \/____/                  \/____/                                           \/____/
+
+# a simple password checking python code.
+ 
+# CUPC stands for 'Constant Username and Password Checking'
+
+# CUPC is a simple password checker written in python. this is just an example and nothing else.
+# Note: this code is not protected from brute force, be warned.
+# Update 1: Password now can be hashed easily.
+
 import json
 import os
+import bcrypt
+from datetime import datetime
 
-# File to store user data
+# 'USER_FILE' is the same as 'users.json'
 USER_FILE = "users.json"
+
+# Datetime for app execution.
+c_date = datetime.now()
+exp = "Current datetime is:"
 
 # Load existing users from file
 def load_users():
+    # If 'USER_FILE' exist, try to open it with read-only permissions.
     if os.path.exists(USER_FILE):
         try:
             with open(USER_FILE, 'r') as file:
                 return json.load(file)
+        # If error occurred, return nothing (Basically exit program)
         except (json.JSONDecodeError, FileNotFoundError):
             return {}
     return {}
@@ -19,76 +58,119 @@ def save_users(users_dict):
     with open(USER_FILE, 'w') as file:
         json.dump(users_dict, file)
 
-# Sign up function
+# Sign up function with PIN validation and hashing
 def sign_up():
     print("\n=== SIGN UP ===")
     users = load_users()
-    
+
     while True:
         username = input("Choose a username: ")
-        
-        # Check if username already exists
+
         if username in users:
             print("Username already exists. Please choose a different one.")
             continue
-            
-        while True:
-            password = input("Choose a PIN (numbers only): ")
-            
-            if password.isdigit():
-                # Store the user with their PIN
-                users[username] = int(password)
-                save_users(users)
-                print("Account created successfully!")
-                return True
-            else:
-                print("PIN must contain only numbers. Please try again.")
+        
+        password = input("Choose a PIN (numbers only): ")
 
-# Modified login function
+        if not password.isdigit():
+            print("PIN must contain only digits. Please try again.")
+            continue
+
+        hashed_pw = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
+        users[username] = hashed_pw.decode()
+        save_users(users)
+        print("Account created successfully!")
+        return True
+
+# Login function with PIN validation and verification
 def login():
     print("\n=== LOGIN ===")
     users = load_users()
-    
-    # Check if there are any users
+
     if not users:
         print("No users registered. Please sign up first.")
         return False
-    
+
+    username = input("Username: ")
+    password = input("PIN: ")
+
+    if not password.isdigit():
+        print("PIN must contain only digits.")
+        return False
+
+    if username not in users:
+        print("Username not found. Please try again.")
+        return False
+
+    stored_hash = users[username].encode()
+
+    # If password and the stored hash matches, print Login successful
+    if bcrypt.checkpw(password.encode(), stored_hash):
+        print("Login successful!")
+
+        # If admin logged in, open the admin panel
+        if username == "admin":
+            print("Welcome Admin.")
+            while True:
+                print("\n1. Delete user file")
+                print("2. Exit")
+                choice = input("Choose a number (1-2): ") # Gets an input for the following options.
+
+                if choice == "1":
+                    if os.path.exists(USER_FILE): # if user_file exists, delete it.
+                        os.remove(USER_FILE)
+                        print("'users.json' has been deleted.")
+                    else:
+                        print("User file not found.")
+                    break
+                elif choice == "2":
+                    print("Goodbye!")
+                    break
+                else:
+                    print("Invalid choice. Try again.")
+        return True
+    else:
+        print("Incorrect PIN. Please try again.")
+        return False
+
+# Hidden admin setup function (PIN only)
+def hidf():
+    users = load_users()
+
     while True:
-        username = input("Username: ")
-        password = input("PIN: ")
-        
-        # Check if username exists
-        if username not in users:
-            print("Username not found. Please try again.")
+        password = input("Enter new admin PIN: ")
+
+        if not password.isdigit():
+            print("PIN must contain only digits.")
             continue
-            
-        # Check if password is correct
-        if password.isdigit() and users[username] == int(password):
-            print("Login successful!")
-            return True
-        else:
-            print("Incorrect PIN. Please try again.")
+
+        hashed_pw = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
+        users["admin"] = hashed_pw.decode()
+        save_users(users)
+        print("Admin PIN set successfully.")
+        break
 
 # Main program
 def main():
+    print(exp, c_date)
     while True:
         print("\n1. Sign Up")
         print("2. Login")
         print("3. Exit")
-        
+
         choice = input("Choose an option (1-3): ")
         
         if choice == "1":
             sign_up()
         elif choice == "2":
             if login():
-                # Add your post-login code here
                 print("Welcome! You are now logged in.")
                 break
         elif choice == "3":
             print("Goodbye!")
             break
+        elif choice == "9783":  # Hidden admin setup trigger
+            hidf()
         else:
             print("Invalid choice. Please try again.")
 
