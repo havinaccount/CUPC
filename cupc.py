@@ -29,6 +29,7 @@
 # Note: this code is not protected from brute force, be warned.
 # Update 1: Password now can be hashed easily.
 
+import getpass
 import json
 import os
 import bcrypt
@@ -49,7 +50,7 @@ def load_users():
             with open(USER_FILE, 'r') as file:
                 return json.load(file)
         # If error occurred, return nothing (Basically exit program)
-        except (json.JSONDecodeError, FileNotFoundError):
+        except json.JSONDecodeError:
             return {}
     return {}
 
@@ -70,7 +71,7 @@ def sign_up():
             print("Username already exists. Please choose a different one.")
             continue
         
-        password = input("Choose a PIN (numbers only): ")
+        password = getpass.getpass("Choose a PIN (numbers only, Pass is hidden): ", stream=None)
 
         if not password.isdigit():
             print("PIN must contain only digits. Please try again.")
@@ -92,7 +93,7 @@ def login():
         return False
 
     username = input("Username: ")
-    password = input("PIN: ")
+    password = getpass.getpass("PIN (Pass is hidden): ")
 
     if not password.isdigit():
         print("PIN must contain only digits.")
@@ -104,20 +105,15 @@ def login():
 
     stored_hash = users[username].encode()
 
-    # If password and the stored hash matches, print Login successful
-    if bcrypt.checkpw(password.encode(), stored_hash):
-        print("Login successful!")
-
-        # If admin logged in, open the admin panel
-        if username == "admin":
+    if username == "admin":
+        if bcrypt.checkpw(password.encode(), stored_hash):
             print("Welcome Admin.")
             while True:
                 print("\n1. Delete user file")
                 print("2. Exit")
-                choice = input("Choose a number (1-2): ") # Gets an input for the following options.
-
+                choice = input("Choose a number (1-2): ")
                 if choice == "1":
-                    if os.path.exists(USER_FILE): # if user_file exists, delete it.
+                    if os.path.exists(USER_FILE):
                         os.remove(USER_FILE)
                         print("'users.json' has been deleted.")
                     else:
@@ -128,17 +124,55 @@ def login():
                     break
                 else:
                     print("Invalid choice. Try again.")
+        else:
+            print("Incorrect Admin PIN.")
         return True
-    else:
-        print("Incorrect PIN. Please try again.")
-        return False
-
+    
+    # If password and the stored hash matches, print Login successful
+    if bcrypt.checkpw(password.encode(), stored_hash):
+        print("Login successful!")
+        print("\n1. Calculation")
+        print("2. Log out")
+        while True: 
+            chess = input("Please select a number: ")
+            if chess == "1":
+                while True:
+                    num1 = input("Enter a number: ")
+                    num2 = input("Enter a secondary number: ")
+                    
+                    if num1.isdigit() and num2.isdigit():
+                        num1 = int(num1)
+                        num2 = int(num2)
+                    else:
+                        print("Only digits are allowed.")
+                        continue
+                            
+                    print("Multiplication =", num1 * num2)
+                    if num2 == 0 or num1 == 0:
+                        print("Division = Cannot divide by zero.")
+                        print("Integer Division = Cannot divide by zero.")
+                        print("Remainder = Cannot divide by zero.")
+                    else:    
+                        print("Division =", round(num1 / num2, 3))
+                        print("Integer Division =", num1 // num2)
+                        print("Remainder =", num1 % num2)
+                    print("Addition =", num1 + num2)
+                    print("Subtraction =", num1 - num2)    
+                    break    
+            elif chess == "2":
+                print("Goodbye!")
+                break
+            else:
+                print("Wrong choice, Please try again.")
+                continue
+            break
+        
 # Hidden admin setup function (PIN only)
 def hidf():
     users = load_users()
 
     while True:
-        password = input("Enter new admin PIN: ")
+        password = getpass.getpass("Enter new admin PIN (Pass is hidden): ")
 
         if not password.isdigit():
             print("PIN must contain only digits.")
