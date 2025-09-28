@@ -53,8 +53,8 @@ To set an admin PIN, run the app and enter 9783 at the main menu.
 
 ### File Structure
 ```
-├── main.py
-├── users.json
+├── cupc.py
+├── LICENSE
 ├── README.md
 ```
 ### License
