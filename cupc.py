@@ -65,21 +65,27 @@ def recreate_user():
 
 # Load existing users from file
 def load_users():
-    # If 'USER_FILE' exist, try to open it with read-only permissions.
     global users_cache
-    if users_cache is not None:\
+
+    if users_cache is not None:
         return users_cache
-    if os.path.exists(USER_FILE):
-        try:
-            with open(USER_FILE, 'r') as file:
-                logging.info("User file loaded successfully.")
-                return json.load(file)    
-        # If error occurred, return nothing (Basically exit program)
-        except json.JSONDecodeError:
-            print("Error reading user file, it may be corrupted or not available.")
-            return {}
-    logging.warning("User file not found, Starting with empty user list.")
-    users_cache = loaded_users # type: ignore
+
+    if not os.path.exists(USER_FILE):
+        logging.warning("User file not found, starting with empty user list.")
+        with open(USER_FILE, "w") as file:
+            file.write("{}")
+        users_cache = {}
+        return users_cache
+
+    try:
+        with open(USER_FILE, 'r') as file:
+            users_cache = json.load(file)
+            logging.info("User file loaded successfully.")
+    except json.JSONDecodeError:
+        logging.error("User file is corrupted. Starting with empty user list.")
+        print("Warning, User data file was corrupted, All accounts have been removed.")
+        users_cache = {}
+
     return users_cache
 
 # Save users to file
@@ -99,6 +105,16 @@ def sign_up():
         if username in users:
             print("Username already exists. Please choose a different one.")
             logging.warning(f"Sign-up failed: Username '{username}' already exists.")
+            continue
+        
+        if not username:
+            print("Username cannot be empty or spaces, Please try again.")
+            logging.warning("Login failed: Empty username entered.")
+            continue  
+        
+        if len(username) < 4:
+            print("Please choose a longer username.")
+            logging.warning("Entered username has less the 4 characters.")
             continue
         
         password = getpass.getpass("Choose a PIN (numbers only, Pass is hidden): ", stream=None)
@@ -123,21 +139,31 @@ def sign_up():
 def login():
     print("\n=== LOGIN ===")
     users = load_users()
-    global attempts
     
     if not users:
         print("No users registered. Please sign up first.")
         return False
     
-    username = input("Username: ")
+    username = input("Username: ").strip()
+
+    if len(username) < 4:
+        print("Usernames should be longer, are you brute-forcing?")
+        time.sleep(4)
      
     if username not in users:
         print("Invalid Credentials. Please try again.")
         logging.warning("Login attempt failed: Username is not registered")
         return False
     
+    if not username:
+        print("Username cannot be empty or spaces, Please try again.")
+        logging.warning("Login failed: Empty username entered.")
+    
+    
     dummy_hash = bcrypt.hashpw(b"dummy", bcrypt.gensalt(rounds=12))
     stored_hash = users.get(username, dummy_hash).encode()
+    
+    attempts = 0
     
     while attempts < MAX_ATTEMPTS:
         password = getpass.getpass("PIN (Pass is hidden): ")
@@ -217,6 +243,9 @@ def admin_panel():
         if choice == "1":
             if os.path.exists(USER_FILE):
                 os.remove(USER_FILE)
+                global users_cache
+                with open(USER_FILE, 'w') as file:
+                    file.write("{}")
                 logging.info(f"Admin deleted user file at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
                 print("'users.json' has been deleted.")
             else:
@@ -258,31 +287,30 @@ def hidf():
 # Calculator
 def calc(username):
     print(f"Welcome {username}")
-    numbers = [num1 , num2]
     logging.info(f"User {username} accessed calculator.")
     
     while True:
-        num1 = input("Enter a number: ")
-        num2 = input("Enter a secondary number: ")
+        num1 = input("Enter a number: ").strip()
+        num2 = input("Enter a secondary number: ").strip()
                     
-        if num1.isdigit() and num2.isdigit():
+        try:
             num1 = int(num1)
             num2 = int(num2)
-        else:
+        except:
             print("Only digits are allowed.")
-            logging.warning("Calculations gone wrong, non-digit entered.")
+            logging.warning(f"Calculations gone wrong, non-digit entered by {username}.")
             continue
+        
+        numbers = [num1 , num2]
         
         # All types of math are combined.                    
         print("Multiplication =", numbers[0] * numbers[1])
         if numbers[1] == 0:
-            logging.warning(f"One or both of num's have the value 0 by {username}, Canceling (Division, Integer Division, Remainder)")
-            print("Division = Cannot divide by zero.")
+            logging.warning(f"One num have the value 0 by {username}, Canceling (Integer Division, Remainder)")
             print("Integer Division = Cannot divide by zero.")
             print("Remainder = Cannot divide by zero.")
         else:    
-            print("Division =", round(numbers[0],numbers[1], 3))
-            print("Integer Division =", numbers[0] // numbers[1])
+            print("Integer Division =", round(numbers[0] // numbers[1], 3))
             print("Remainder =", numbers[0] % numbers[1])
         print("Addition =", sum(numbers))
         print("Subtraction =", numbers[0] - numbers[1])    
@@ -296,7 +324,11 @@ def guess_game(username):
     logging.info(f"{username} Playing game.")
     
     while True:    
-        guess = input("Guess a number (1-20): ")
+        guess = input("Guess a number (1-20): ").strip()
+        
+        if not guess:
+            print("Your guess could not be empty, Pick a number.")
+            continue
         
         if guess.isdigit():
             guess = int(guess)
@@ -317,9 +349,9 @@ def guess_game(username):
         elif guess > target:
             attempt += 1
             print(f"You should pick a smaller number. Attempts remaining {MAX_A - attempt}")
-
+        
         if attempt == 5:
-            print(f"You lost {username}")
+            print(f"You lost {username}, The number was {target}")
             logging.info(f"{username} Exited game successfully")
             break
             
@@ -350,8 +382,8 @@ def main():
             logging.warning("Admin Setup triggered.")
             hidf()
         # Second phase testing.
-        # elif choice == "5":
-        #     raise ValueError("Test crash")
+        elif choice == "5":
+            raise ValueError("Test crash")
         else:
             print("Invalid choice. Please try again.")
             logging.warning("Incorrect choice made, repeating process.")
