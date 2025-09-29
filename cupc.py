@@ -31,43 +31,56 @@
 # Update 2: Logging is added for debugging program.
 
 import getpass
-import ujson as json # type: ignore
+import ujson as json 
 import os
 import bcrypt
 from datetime import datetime
 import logging
+import random
+import time
 
-# AI Generated (line 40-44)
+# AI Generated (line 40-45)
 logging.basicConfig(
     filename='ex.log',
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(levelname)s - %(funcName)s - Line %(lineno)d - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
 )
 
 # 'USER_FILE' is the same as 'users.json'
 USER_FILE = "users.json"
 MAX_ATTEMPTS = 5
 attempts = 0
+users_cache = None
+delay = 2 ** attempts
 
 # Datetime for app execution.
-c_date = datetime.now()
-fc_date = c_date.strftime("%Y-%m-%d %H:%M")
+fc_date = datetime.now().strftime("%Y-%m-%d %H:%M")
 exp = "Current datetime is:"
+
+def recreate_user():
+    if not os.path.exists(USER_FILE):
+        with open(USER_FILE, "w") as file:
+            file.write("{}")
 
 # Load existing users from file
 def load_users():
     # If 'USER_FILE' exist, try to open it with read-only permissions.
+    global users_cache
+    if users_cache is not None:\
+        return users_cache
     if os.path.exists(USER_FILE):
         try:
             with open(USER_FILE, 'r') as file:
                 logging.info("User file loaded successfully.")
-                return json.load(file)
+                return json.load(file)    
         # If error occurred, return nothing (Basically exit program)
         except json.JSONDecodeError:
             print("Error reading user file, it may be corrupted or not available.")
             return {}
     logging.warning("User file not found, Starting with empty user list.")
-    return {}
+    users_cache = loaded_users # type: ignore
+    return users_cache
 
 # Save users to file
 def save_users(users_dict):
@@ -81,7 +94,8 @@ def sign_up():
 
     while True:
         username = input("Choose a username: ")
-
+        logging.info(f"Sign-up attempt for username: {username}")
+        
         if username in users:
             print("Username already exists. Please choose a different one.")
             logging.warning(f"Sign-up failed: Username '{username}' already exists.")
@@ -93,8 +107,12 @@ def sign_up():
             print("PIN must contain only digits. Please try again.")
             logging.warning("Sign-up failed: Non-digit pin detected.")
             continue
+        
+        if len(password) < 4:
+            print("Password must contain 4 digits.")
+            continue
 
-        hashed_pw = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
+        hashed_pw = bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12))
         users[username] = hashed_pw.decode()
         save_users(users)
         logging.info(f"New user '{username}' registered.")
@@ -114,11 +132,12 @@ def login():
     username = input("Username: ")
      
     if username not in users:
-        print("Username not found. Please try again.")
-        logging.warning("Login attempt failed: No users registered")
+        print("Invalid Credentials. Please try again.")
+        logging.warning("Login attempt failed: Username is not registered")
         return False
     
-    stored_hash = users[username].encode()
+    dummy_hash = bcrypt.hashpw(b"dummy", bcrypt.gensalt(rounds=12))
+    stored_hash = users.get(username, dummy_hash).encode()
     
     while attempts < MAX_ATTEMPTS:
         password = getpass.getpass("PIN (Pass is hidden): ")
@@ -126,28 +145,44 @@ def login():
             print("PIN must contain only digits.")
             logging.warning("Login attempt failed: Non-digit PIN entered.")
             return False
+        
+        if len(password) < 4:
+            print("Password must contain 4 digits.")
+            continue
+        
         if bcrypt.checkpw(password.encode(), stored_hash):
             logging.info(f"User '{username}' logged in successfully.")
+            
             if username == "admin":
                 logging.info("Admin panel executed.")
                 return admin_panel()
-            return user_panel()
+            return user_panel(username)
         elif attempts < 5:
             attempts += 1
             logging.warning(f"Incorrect PIN for user '{username}'. Attempts left: {MAX_ATTEMPTS - attempts}")
             print(f"Incorrect PIN. Attempts left: {MAX_ATTEMPTS - attempts}")
+            time.sleep(delay)
     return {}
 
-    # If password and the stored hash matches, print Login successful
-def user_panel():    
+# User Panel
+def user_panel(username):    
     print("Login successful!")
-    print("\n1. Calculation")
-    print("2. Log out")
+    
     while True: 
+        print("\n1. Calculation")
+        print("2. Change PIN")
+        print("3. Guess the Number")
+        print("4. Log out")
+        
         chess = input("Please select a number: ")
+        
         if chess == "1":
-            calc()
-        elif chess == "2":
+            calc(username)
+        elif chess == "2": 
+            change_pin(username)
+        elif chess == "3":
+            guess_game(username)
+        elif chess == "4":
             print("Goodbye!")
             logging.info("User successfully logged out.")
             break
@@ -156,29 +191,49 @@ def user_panel():
             logging.warning("Wrong Choice Entered, repeating choice process.")
             continue
 
+# Change PIN
+def change_pin(username):
+    users = load_users()
+    logging.info(f"{username} requests a PIN change.")
+    new_pin = getpass.getpass("Enter new PIN: ")
+    if new_pin.isdigit():
+        hashed_pw = bcrypt.hashpw(new_pin.encode(), bcrypt.gensalt(rounds=12))
+        users[username] = hashed_pw.decode()
+        save_users(users)
+        print("PIN changed successfully.")
+        logging.info(f"{username} Changed PIN successfully.")
+
+# Admin Panel
 def admin_panel():
     print("Welcome Admin.")
     logging.info("Admin panel accessed.")
+    
     while True:
         print("\n1. Delete user file")
-        print("2. Exit")
+        print("2. List of users")
+        print("3. Exit")
         choice = input("Choose an option: ")
+        
         if choice == "1":
             if os.path.exists(USER_FILE):
                 os.remove(USER_FILE)
-                logging.info("User file deleted by admin.")
+                logging.info(f"Admin deleted user file at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
                 print("'users.json' has been deleted.")
             else:
                 logging.warning("Admin tried to delete user file, but it was not found.")
                 print("User file not found.")
             break
-        elif choice == "2":
+        elif choice == "3":
             print("Goodbye!")
             logging.info("Admin Exited Panel")
             break
+        elif choice == "2":
+            print("\nRegistered Users:")
+            for user in load_users().keys():
+                print("\n-", user)
         else:
             print("Invalid choice.")
-            logging.warning("Wrong choice in func 'admin_panel()'")
+            logging.warning("Wrong choice made, repeating process.")
     return True
     
 # Hidden admin setup function (PIN only)
@@ -194,14 +249,18 @@ def hidf():
             logging.warning("Admin Setup failed (partially), Non-digit password entered.")
             continue
 
-        hashed_pw = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
+        hashed_pw = bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12))
         users["admin"] = hashed_pw.decode()
         save_users(users)
         print("Admin PIN set successfully.")
         logging.info("Admin account successfully created")
         break
-
-def calc():
+# Calculator
+def calc(username):
+    print(f"Welcome {username}")
+    numbers = [num1 , num2]
+    logging.info(f"User {username} accessed calculator.")
+    
     while True:
         num1 = input("Enter a number: ")
         num2 = input("Enter a secondary number: ")
@@ -213,27 +272,65 @@ def calc():
             print("Only digits are allowed.")
             logging.warning("Calculations gone wrong, non-digit entered.")
             continue
-                            
-        print("Multiplication =", num1 * num2)
-        if num2 == 0 or num1 == 0:
+        
+        # All types of math are combined.                    
+        print("Multiplication =", numbers[0] * numbers[1])
+        if numbers[1] == 0:
+            logging.warning(f"One or both of num's have the value 0 by {username}, Canceling (Division, Integer Division, Remainder)")
             print("Division = Cannot divide by zero.")
             print("Integer Division = Cannot divide by zero.")
             print("Remainder = Cannot divide by zero.")
         else:    
-            print("Division =", round(num1 / num2, 3))
-            print("Integer Division =", num1 // num2)
-            print("Remainder =", num1 % num2)
-        print("Addition =", num1 + num2)
-        print("Subtraction =", num1 - num2)    
+            print("Division =", round(numbers[0],numbers[1], 3))
+            print("Integer Division =", numbers[0] // numbers[1])
+            print("Remainder =", numbers[0] % numbers[1])
+        print("Addition =", sum(numbers))
+        print("Subtraction =", numbers[0] - numbers[1])    
         break    
     return {}
+
+def guess_game(username):
+    MAX_A = 5
+    attempt = 0
+    target = random.randint(1, 20)
+    logging.info(f"{username} Playing game.")
+    
+    while True:    
+        guess = input("Guess a number (1-20): ")
+        
+        if guess.isdigit():
+            guess = int(guess)
+        else:
+            print("You should guess a number.")
+            continue
+        
+        if guess < 1 or guess > 20:
+            print("You should pick a number between 1 and 10")
+        
+        if guess == target:
+            print("You won!")
+            logging.info(f"{username} Exited game successfully")
+            break
+        elif guess < target:
+            attempt += 1
+            print(f"Pick a higher number, Attempts remaining {MAX_A - attempt}")
+        elif guess > target:
+            attempt += 1
+            print(f"You should pick a smaller number. Attempts remaining {MAX_A - attempt}")
+
+        if attempt == 5:
+            print(f"You lost {username}")
+            logging.info(f"{username} Exited game successfully")
+            break
+            
 # Log testing
-def crash():
-    exec(type((lambda: 0).__code__)(0, 0, 0, 0, 0, 0, b'\x053', (), (), (), '', '', 0, b''))
+# def crash():
+#     exec(type((lambda: 0).__code__)(0, 0, 0, 0, 0, 0, b'\x053', (), (), (), '', '', 0, b''))
 # Main program
 def main():
     logging.info("\nProgram started.")
     print(exp, fc_date)
+    
     while True:
         print("\n1. Sign Up")
         print("2. Login")
@@ -252,11 +349,13 @@ def main():
         elif choice == "9783":  # Hidden admin setup trigger
             logging.warning("Admin Setup triggered.")
             hidf()
-        elif choice == "5":
-            raise ValueError("Test crash")
+        # Second phase testing.
+        # elif choice == "5":
+        #     raise ValueError("Test crash")
         else:
-            logging.warning("Incorrect choice made, repeating process.")
             print("Invalid choice. Please try again.")
+            logging.warning("Incorrect choice made, repeating process.")
+            continue
 
 # Run the program
 if __name__ == "__main__":
