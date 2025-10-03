@@ -1,6 +1,6 @@
 # CUPC
 CUPC – Constant Username and Password Checking
-CUPC is a simple Python-based password checker that allows users to sign up and log in using a numeric PIN. It demonstrates basic user authentication, password hashing with bcrypt, and includes a built-in calculator for logged-in users.
+CUPC is a simple Python-based password checker that allows users to sign up and log in using a numeric PIN. It demonstrates basic user authentication, password hashing with `bcrypt`, and includes a built-in calculator for logged-in users.
  
 > [!CAUTION] 
 > This project is for educational purposes only. It is not secure against brute-force attacks or suitable for production use.
