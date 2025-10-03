@@ -48,9 +48,9 @@ pyinstaller main.py --onefile --optimize=2 --clean --noupx
 ```
 Do not use `--strip` because modules aren't compiled with it.
 ### Security Notes
-- PINs are hashed, but the app does not limit login attempts.
+- PINs are hashed, and the app does limit login attempts.
 
-- No encryption or secure storage beyond basic hashing.
+- No encryption or secure storage beyond basic hashing and file hash verifying.
 
 - Avoid using real credentials.
 
