@@ -39,7 +39,7 @@ pip install bcrypt orjson numba blake3 getpass
 ```
 ## Run the App
 ```
-python main.py
+python cupc.py
 ```
 ## PyInstaller Build (Optional) (Prebuilt)
 To compile into a standalone executable:
