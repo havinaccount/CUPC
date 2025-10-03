@@ -44,7 +44,7 @@ import shutil # Using shutil for creating file backups
 
 # Following explanations may change depending on bugfixes and new features
 
-# AI Generated (line 40-45)
+# AI Generated (line 48-53)
 logging.basicConfig(
     filename='ex.log',
     level=logging.INFO,
@@ -518,3 +518,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n\nGoodbye!")
         exit()
+
