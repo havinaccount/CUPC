@@ -31,6 +31,7 @@
 # Update 2: Logging is added for debugging program.
 # Update 3: Added time for avoiding brute-force attacks
 
+from functools import lru_cache
 import getpass # Using getpass to hide input
 import orjson # Using orjson for faster read and write (ujson deprecated)
 import os # Using os for user file deletion and dumping
@@ -41,10 +42,12 @@ import random # Using random for the guess game
 import time # Using time for preventing brute-force attacks
 import threading # Using threading for more optimized thread usage
 import shutil # Using shutil for creating file backups
+from blake3 import blake3
+from numba import jit, njit
 
 # Following explanations may change depending on bugfixes and new features
 
-# AI Generated (line 48-53)
+# AI Generated (line 40-45)
 logging.basicConfig(
     filename='ex.log',
     level=logging.INFO,
@@ -59,9 +62,10 @@ attempts = 0
 users_cache = None
 delay = 2 ** attempts
 user_file_lock = threading.Lock()
+USER_HASH = os.path.join(os.path.dirname(__file__), "users.hash")
 
 # Datetime for app execution.
-fc_date = datetime.now().strftime("%Y-%m-%d %H:%M")
+fc_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 exp = "Current datetime is:"
 
 print(f"Using USER_FILE at : {USER_FILE}")
@@ -73,6 +77,7 @@ def recreate_user():
             file.write(orjson.dumps({}))
 
 # Load existing users from file
+@lru_cache(maxsize=128)
 def load_users():
     global users_cache # Make the user cache globally available
 
@@ -86,6 +91,14 @@ def load_users():
         users_cache = {} # Give user_cache a storage
         return users_cache # Flush users_cache
 
+    if not verify_user_file_integrity():
+        logging.error("User file integrity tampered")
+        print("Warning: User file integrity is tampered. Resetting users.")
+        os.rename(USER_FILE, USER_FILE + '.tamp')
+        with open(USER_FILE, 'wb') as file:
+            file.write(orjson.dumps({}))
+        users_cache = {}
+        return users_cache
     try:
         with user_file_lock: # With the following thread lock, open user_file
             with open(USER_FILE, 'rb') as file:
@@ -107,23 +120,40 @@ def load_users():
     
     return users_cache # Flush the user_cache
 
+def validate_users_dict(users_dict):
+    return isinstance(users_dict, dict)
+
 # Save users to file
 def save_users(users_dict):
+    if not validate_users_dict(users_dict):
+        raise ValueError("Invalid user data format")
     try:
         if os.path.exists(USER_FILE):
-            shutil.copy(USER_FILE, USER_FILE + '.bak') # Create a backup of the USER_FILE
-    except FileNotFoundError:
+            shutil.copy(USER_FILE, f'{USER_FILE}.{fc_date}.bak') # Create a backup of the USER_FILE
+    except:
         print()
-        
     with user_file_lock: # With the thread lock inbound
         try:
             with open(USER_FILE, 'wb') as file:
-                file.write(orjson.dumps(users_dict, file)) # Dump the sign-up info
+                file.write(orjson.dumps(users_dict)) # Dump the sign-up info
             logging.info("User data saved.")
         except Exception as e: # Catch the exception
             print("Error saving user data. Please try again.")
             logging.error(f"Failed to save user data: {e}")
+    
+        try:
+            with open (USER_FILE, 'rb') as file:
+                data = file.read()
+            hasher_value = blake3(data).hexdigest()
+            with open(USER_HASH, 'w') as hasher_file:
+                hasher_file.write(hasher_value)
+            logging.info(f"User file hashed successfully {hasher_value}")
+        except Exception as e:
+            print("Error saving user data. Please try again.")
+            logging.error(f"Failed to save user data or hash: {e}")
+
 # Sign up function with PIN validation and hashing
+@lru_cache(maxsize=128)
 def sign_up():
     print("\n=== SIGN UP ===")
     try:
@@ -132,7 +162,13 @@ def sign_up():
         print("User file not found.")
         return False
     while True:
-        username = input("Choose a username: ").strip()
+        try:
+            username = input("Choose a username: ").strip()
+        except EOFError:
+            print("\n\nInput stream closed. Cannot read input.\n")
+            logging.error(f"EOFError: Input failed")
+            return  # or break, or fallback logic
+        
         logging.info(f"Sign-up attempt for username: {username}")
         
         if username in users:
@@ -155,8 +191,13 @@ def sign_up():
             logging.warning("A User tried to sign-up as admin.")
             continue
         
-        password = getpass.getpass("Choose a PIN (numbers only, Pass is hidden): ", stream=None)
-
+        try:
+            password = getpass.getpass("Choose a PIN (numbers only, Pass is hidden): ", stream=None)
+        except EOFError:
+            print("Input stream closed. Cannot read input.")
+            logging.error(f"EOFError: Input failed for {username}")
+            return  # or break, or fallback logic
+        
         if not password.isdigit(): # Numeric Verification
             print("PIN must contain only digits. Please try again.")
             logging.warning("Sign-up failed: Non-digit pin detected.")
@@ -166,7 +207,12 @@ def sign_up():
             print("Password must contain 4 digits.")
             continue
         
-        confirm = getpass.getpass('Confirm your PIN: ').strip() # Give a confirmation check
+        try:
+            confirm = getpass.getpass('Confirm your PIN: ').strip() # Give a confirmation check
+        except EOFError:
+            print("Input stream closed. Cannot read input.")
+            logging.error(f"EOFError: Input failed for {username}")
+            return  # or break, or fallback logic
         
         if confirm != password:
             print("PINs do not match, Please try again.")
@@ -179,6 +225,7 @@ def sign_up():
         break
     
 # Hashing sequence.    
+@lru_cache(maxsize=128)
 def hash_verify(username, password):
     users = load_users() # Load the USER_FILE
     hashed_pw = bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12)) # Declare the hash_pw variable
@@ -195,6 +242,20 @@ def hash_new_pin(username, new_pin):
     print("PIN changed successfully.")
     logging.info(f"{username} Changed PIN successfully.")
 
+def verify_user_file_integrity():
+    try:
+        with open(USER_FILE, 'rb') as file:
+            data = file.read()
+        current_hash = blake3(data).hexdigest()
+            
+        with open(USER_HASH, 'r') as hasher_file:
+            stored_hash = hasher_file.read().strip()
+            
+        return current_hash == stored_hash
+    except Exception as e:
+        logging.warning(f"Integrity check failed: {e}")
+        return False
+
 # Login function with PIN validation and verification
 def login():
     print("\n=== LOGIN ===")
@@ -204,8 +265,13 @@ def login():
         print("No users registered. Please sign up first.")
         return False
     
-    username = input("Username: ").strip()
-
+    try:
+        username = input("Username: ").strip()
+    except EOFError:
+        print("\n\nInput stream closed. Cannot read input.\n")
+        logging.error(f"EOFError: Input failed")
+        return  # or break, or fallback logic
+    
     if len(username) < 4: # Username length verification.
         print("Usernames should be longer, are you brute-forcing?")
         time.sleep(4)
@@ -226,7 +292,12 @@ def login():
     attempts = 0
     
     while attempts < MAX_ATTEMPTS:
-        password = getpass.getpass("PIN (Pass is hidden): ") # Getting password
+        try:    
+            password = getpass.getpass("PIN (Pass is hidden): ") # Getting password
+        except EOFError:
+            print("\n\nInput stream closed. Cannot read input.\n")
+            logging.error(f"EOFError: Input failed")
+            return  # or break, or fallback logic
         
         if not password.isdigit(): # Making Password only look for digits. 
             print("PIN must contain only digits.")
@@ -247,6 +318,7 @@ def login():
     return {}
 
 # User Panel
+@lru_cache(maxsize=32)
 def user_panel(username):    
     print("Login successful!")
     
@@ -256,7 +328,12 @@ def user_panel(username):
         print("3. Guess the Number")
         print("4. Log out")
         
-        choice = input("Please select a number: ").strip() # Get a number from user.
+        try:
+            choice = input("Please select a number: ").strip() # Get a number from user.
+        except EOFError:
+            print("\n\nInput stream closed. Cannot read input.\n")
+            logging.error(f"EOFError: Input failed for {username}")
+            return  # or break, or fallback logic
         
         # Depending on the choice, launch the following functions
         if choice == "1":
@@ -286,7 +363,12 @@ def change_pin(username):
     logging.info(f"{username} requests a PIN change.")
     
     while True:
-        new_pin = getpass.getpass("Enter new PIN: ").strip() # Ask the user for the following new PIN
+        try:
+            new_pin = getpass.getpass("Enter new PIN: ").strip() # Ask the user for the following new PIN
+        except EOFError:
+                print("\n\nInput stream closed. Cannot read input.\n")
+                logging.error(f"EOFError: Input failed for {username}")
+                return  # or break, or fallback logic
         
         if len(new_pin) < 4: # PIN length verification
             print("PIN must be 4 digits or higher.")
@@ -320,13 +402,19 @@ def admin_panel(username="admin"):
         print("2. List of users")
         print('3. User Panel')
         print("4. Exit")
-        choice = input("Choose an option: ").strip()
+        
+        try:
+            choice = input("Choose an option: ").strip()
+        except EOFError:
+            print("\n\nInput stream closed. Cannot read input.\n")
+            logging.error(f"EOFError: Input failed for {username}")
+            return  # or break, or fallback logic")
         
         # Depending on the choice, Execute the following functions.
         if choice == "1":
             if os.path.exists(USER_FILE): # User file deletion mechanic
                 os.remove(USER_FILE)
-                with open(USER_FILE, 'w') as file:
+                with open(USER_FILE, 'wb') as file:
                     file.write(orjson.dumps({}))
                 logging.info(f"Admin reset user file at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
                 print("'users.json' has been reset.")
@@ -360,8 +448,12 @@ def hidden_function():
     users = load_users()
     
     while True:
-        password = getpass.getpass("Enter new admin PIN (Pass is hidden): ").strip() # Get a new PIN for registering admin
-
+        try:
+            password = getpass.getpass("Enter new admin PIN (Pass is hidden): ").strip() # Get a new PIN for registering admin
+        except EOFError:
+            print("\n\nInput stream closed, Cannot read input.\n")
+            logging.error(f"EOFError: Input failed")
+            return  # or break, or fallback logic")
         if not password.isdigit(): # Verify Digits
             print("PIN must contain only digits.")
             logging.warning("Admin Setup failed (partially), Non-digit password entered.")
@@ -396,9 +488,14 @@ def calc(username):
     
     # Get two numbers (both will be saved in 'numbers')
     while True:
-        num1 = input("Enter a number: ").strip()
-        num2 = input("Enter a secondary number: ").strip()
-                 
+        try:
+            num1 = input("Enter a number: ").strip()
+            num2 = input("Enter a secondary number: ").strip()
+        except EOFError:
+                print("\n\nInput stream closed. Cannot read input.\n")
+                logging.error(f"EOFError: Input failed for {username}")
+                return  # or break, or fallback logic         
+        
         try: # Using an try/except block for catching errors
             num1 = float(num1)
             num2 = float(num2)
@@ -410,20 +507,33 @@ def calc(username):
         numbers = [num1, num2]
         
         # All types of math are combined.    
-        print("Multiplication =", num1 * num2)
+        print("\nMultiplication =", num1 * num2)
         if numbers[1] == 0:
             logging.warning(f"One number have the value 0 by {username}, Canceling (Integer Division, Remainder)")
             print("Integer Division = Cannot divide by zero.")
             print("Remainder = Cannot divide by zero.")
         else:    
-            print("Integer Division =", round(num1 // num2, 3))
-            print("Remainder =", num1 % num2)
-        print("Addition =", sum(numbers))
-        print("Subtraction =", num1 - num2)        
-        again = input("Do you want to recalculate again?: ")
+            print("Integer Division =", integer_division(num1 ,num2))
+            print("Remainder =", remainder(num1, num2))
+        print("Addition =", addition(num1 , num2))
+        print("Subtraction =", subtraction(num1 , num2))        
+        again = input("\nDo you want to recalculate again?: \n").strip().lower()
         if again != 'y':
             break
     return
+
+@njit(cache=True)
+def addition(x, y):
+    return x + y
+@njit(cache=True)
+def subtraction(x, y):
+    return x - y
+@njit(cache=True)
+def integer_division(x, y):
+    return round(x // y, 3)
+@njit(cache=True)
+def remainder(x, y):
+    return x % y
 
 def guess_game(username):
     MAX_A = 5 # Give a attempt amount 
@@ -432,7 +542,13 @@ def guess_game(username):
     logging.info(f"{username} Playing game.")
     
     while True:    
-        guess = input("Guess a number (1-20): ").strip()
+        
+        try:
+            guess = input("Guess a number (1-20): ").strip()
+        except EOFError:
+                print("\n\nInput stream closed. Cannot read input.\n")
+                logging.error(f"EOFError: Input failed for {username}")
+                return  # or break, or fallback logic
         
         if not guess:
             print("Your guess could not be empty, Pick a number.")
@@ -468,6 +584,7 @@ def guess_game(username):
 # def crash():
 #     exec(type((lambda: 0).__code__)(0, 0, 0, 0, 0, 0, b'\x053', (), (), (), '', '', 0, b''))
 # Main program
+@lru_cache(None)
 def main():
     logging.info("\nProgram started.")
     print(exp, fc_date)
@@ -476,8 +593,12 @@ def main():
         print('\n1. Sign-up')
         print("2. Login")
         print("3. Exit")
-
-        choice = input("Choose an option (1-3): ")
+        try:
+            choice = input("Choose an option (1-3): ")
+        except EOFError:
+            print("\n\nInput stream closed. Cannot read input.\n")
+            logging.error(f"EOFError: Input failed")
+            return  # or break, or fallback logic
         
         # Depending on the choice, run the following functions
         if choice == "1":
@@ -516,6 +637,5 @@ if __name__ == "__main__":
         print("\nAn unexpected error occurred. Please check the log file for details.\n")
         exit(1)
     except KeyboardInterrupt:
-        print("\n\nGoodbye!")
+        print("\nGoodbye!")
         exit()
-
