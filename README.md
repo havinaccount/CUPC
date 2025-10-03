@@ -24,12 +24,18 @@ Python 3.8+
 
 `bcrypt`
 
-`ujson` (optional for performance)
+`orjson` (optional for performance)
+
+`getpass`
+
+`numba` (For JIT compatibility)
+
+`blake3`
 
 ## Installation
 
 ```
-pip install bcrypt ujson
+pip install bcrypt orjson numba blake3 getpass
 ```
 ## Run the App
 ```
