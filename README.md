@@ -46,7 +46,10 @@ To compile into a standalone executable:
 ```
 pyinstaller main.py --onefile --optimize=2 --clean --noupx
 ```
-Do not use `--strip` because modules aren't compiled with it.
+- Do not use `--strip` because modules aren't compiled with it.
+
+- You can use `upx-dir=` for upx but it will make the pyinstaller file slower
+
 ### Security Notes
 - PINs are hashed, and the app does limit login attempts.
 
@@ -59,6 +62,8 @@ To set an admin PIN, run the app and enter 9783 at the main menu.
 
 ### File Structure
 ```
+├── setup.py
+├── __init__.py
 ├── cupc.py
 ├── LICENSE
 ├── README.md
