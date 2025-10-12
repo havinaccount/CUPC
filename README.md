@@ -26,16 +26,16 @@ Python 3.8+
 
 `orjson` (optional for performance)
 
-`getpass`
+`getpass4`
 
-`numba` (For JIT compatibility)
+`numpy` (For Fast calculations)
 
 `blake3`
 
 ## Installation
 
 ```
-pip install bcrypt orjson numba blake3 getpass
+pip install bcrypt orjson numpy blake3 getpass4
 ```
 ## Run the App
 ```
