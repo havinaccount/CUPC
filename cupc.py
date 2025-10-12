@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding=utf-8 -*-
 #           _____                    _____                    _____                    _____          
 #          /\*   \                  /\*   \                  /\*   \                  /\    \
 #         /::\    \                /::\____\                /::\    \                /::\    \
@@ -22,7 +23,7 @@
 #          \/____/                  \/____/                                           \/____/
 
 # a simple password checking python code.
- 
+
 # CUPC stands for 'Constant Username and Password Checking'
 
 # CUPC is a simple password checker written in python. this is just an example and nothing else.
@@ -35,7 +36,7 @@
 # -------------------- Library --------------------
 
 from functools import lru_cache
-from getpass import getpass # Using getpass to hide input
+import getpass # Using getpass to hide input
 import orjson # Using orjson for faster read and write (ujson deprecated)
 import os # Using os for user file deletion and dumping
 import bcrypt # Using bcrypt for hashing passwords
@@ -48,6 +49,7 @@ import shutil # Using shutil for creating file backups
 from blake3 import blake3 # For multithreaded cryptography and file hashing
 import unicodedata # For username normalizations
 import sys # For a cleaner and more stable code exit
+import numpy as np
 
 # Following explanations may change depending on bugfixes and new features
 
@@ -61,7 +63,6 @@ logging.basicConfig(
 
 # -------------------- Variables --------------------
 
-# 'USER_FILE' is the same as 'users.json'
 USER_FILE = os.path.join(os.path.dirname(__file__), "users.json")
 MAX_ATTEMPTS = 5
 attempts = 0
@@ -83,12 +84,14 @@ def recreate_user():
     try:
         with open(USER_FILE, "wb") as file:
             file.write(orjson.dumps({}))
+            return True
     except orjson.JSONDecodeError as e:
         print("USER_FILE is corrupted")
         logging.warning(f"User file corrupted, starting fresh: {e}")
+        return False
 
 @lru_cache(maxsize=128)
-def normalize_username(username):
+def normalize_username(username: str) -> str:
     return unicodedata.normalize('NFC', username.strip())
 
 # -------------------- JSON Handling --------------------
@@ -105,6 +108,9 @@ def load_users():
         with user_file_lock:
             try:
                 recreate_user() # Reset the USER_FILE
+                if not recreate_user():
+                    print("Reset unsuccessful")
+                    sys.exit(1)
             except orjson.JSONDecodeError as e:
                 print("User file is corrupted, exiting.")
                 logging.error(f"User file is corrupted: {e}")
@@ -119,6 +125,9 @@ def load_users():
                 os.remove(USER_FILE + ".tamp")
             os.rename(USER_FILE, USER_FILE + '.tamp')
             recreate_user()
+            if not recreate_user():
+                print("Reset unsuccessful.")
+                sys.exit(1)
         users_cache = {}
         return users_cache
     try:
@@ -203,7 +212,7 @@ def sign_up():
     
     while True:
         try:
-            username = normalize_username(input("Choose a username: ").strip())
+            username = normalize_username(safe_input("Choose a username: ", strip=True))
         except (KeyboardInterrupt, EOFError):
             print("\n\nInput stream closed. Cannot read input.\n")
             logging.error(f"EOFError: Input failed")
@@ -230,14 +239,9 @@ def sign_up():
             print("Username admin is reserved")
             logging.warning("A User tried to sign-up as admin.")
             continue
-        
-        try:
-            password = getpass("Choose a PIN (numbers only, Pass is hidden): ", stream=None)
-        except (KeyboardInterrupt, EOFError):
-            print("Input stream closed. Cannot read input.")
-            logging.error(f"EOFError: Input failed for {username}")
-            return  # or break, or fallback logic
-        
+
+        password = safe_getpass("Choose a PIN (numbers only, Pass is hidden): ")
+
         if not password.isdigit(): # Numeric Verification
             print("PIN must contain only digits. Please try again.")
             logging.warning("Sign-up failed: Non-digit pin detected.")
@@ -247,12 +251,7 @@ def sign_up():
             print("Password must contain 4 digits.")
             continue
         
-        try:
-            confirm = getpass('Confirm your PIN: ').strip() # Give a confirmation check
-        except (KeyboardInterrupt, EOFError):
-            print("Input stream closed. Cannot read input.")
-            logging.error(f"EOFError: Input failed for {username}")
-            break  # or break, or fallback logic
+        confirm = safe_getpass("Confirm your PIN: ")
         
         if confirm != password:
             print("PINs do not match, Please try again.")
@@ -272,7 +271,20 @@ def sign_up():
         
         logging.info(f"New user '{username}' registered.")
         return
-    
+
+def safe_getpass(string):
+    try:
+        value = getpass.getpass(string)
+        return value
+    except Exception as e:
+        print(f"Getting password failed: {e}")
+        logging.error(f"Password interception: {e}")
+        return "None"
+    except (KeyboardInterrupt, EOFError):
+        print("\n\nInput stream closed. Cannot read input.\n")
+        logging.error(f"EOFError: Input failed")
+        return "None" # or break, or fallback logic
+
 # -------------------- Hash handling --------------------
     
 # Hashing sequence.    
@@ -284,7 +296,7 @@ def hash_verify(username, password):
         users = load_users() # Load the USER_FILE       
 
         salt = bcrypt.gensalt(rounds=12)
-  
+
         try:
             hashed_pw = bcrypt.hashpw(password.encode("utf-8"), salt) # Declare the hash_pw variable
             logging.debug(f"hashed_pw type: {type(hashed_pw)}")
@@ -340,6 +352,20 @@ def verify_user_file_integrity():
         logging.warning(f"Integrity check failed: {e}")
         return False
 
+# New type of input with error handling (Please don't change this unless improving it)
+def safe_input(prompt: str, strip: bool = True, lower: bool = False) -> str:
+    try:
+        value = input(prompt)
+        if strip:
+            value = value.strip()
+        if lower:
+            value = value.lower()
+        return value
+    except (KeyboardInterrupt, EOFError):
+        print("\n\nInput stream closed. Cannot read input.\n")
+        logging.error(f"EOFError: Input failed")
+        return "" # or break, or fallback logic
+
 # Login function with PIN validation and verification
 def login():
     print("\n=== LOGIN ===")
@@ -350,7 +376,7 @@ def login():
         return False
     
     try:
-        username = normalize_username(input("Username: ").strip())
+        username = normalize_username(safe_input("Username: ", strip=True))
     except (KeyboardInterrupt, EOFError):
         print("\n\nInput stream closed. Cannot read input.\n")
         logging.error(f"EOFError: Input failed")
@@ -359,7 +385,7 @@ def login():
     if len(username) < 4: # Username length verification.
         print("Usernames should be longer, are you brute-forcing?")
         time.sleep(4)
-     
+
     if username not in users: # Checking for username existence.
         print("Invalid Credentials. Please try again.")
         logging.warning("Login attempt failed: Username is not registered")
@@ -376,48 +402,41 @@ def login():
     attempts = 0
     
     while attempts < MAX_ATTEMPTS:
-        try:    
-            password = getpass("PIN (Pass is hidden): ") # Getting password
-        except (KeyboardInterrupt, EOFError):
-            print("\n\nInput stream closed. Cannot read input.\n")
-            logging.error(f"EOFError: Input failed")
-            break  # or break, or fallback logic
+            
+            password = safe_getpass("PIN (Pass is hidden): ") # Getting password
         
-        if not password.isdigit(): # Making Password only look for digits. 
-            print("PIN must contain only digits.")
-            logging.warning("Login attempt failed: Non-digit PIN entered.")
-            continue
+            if not password.isdigit(): # Making Password only look for digits. 
+                print("PIN must contain only digits.")
+                logging.warning("Login attempt failed: Non-digit PIN entered.")
+                continue
         
-        if len(password) < 4: # Verifying password length.
-            print("Password must contain 4 digits.")
-            continue
+            if len(password) < 4: # Verifying password length.
+                print("Password must contain 4 digits.")
+                continue
         
-        if bcrypt.checkpw(password.encode(), stored_hash): # If the encoded password that we received matches our stored hash, log in.
-            logging.info(f"User '{username}' logged in successfully.")
- 
-            if username == "admin": # if the username is admin and password matches, launch admin panel, otherwise, launch user panel
-                logging.info("Admin panel executed.")
-                admin_panel()
-            user_panel(username)
-            break
-        else:
-            print("\nPassword is incorrect, Please try again\n")
-            attempts += 1 
-    
+            if bcrypt.checkpw(password.encode(), stored_hash): # If the encoded password that we received matches our stored hash, log in.
+                logging.info(f"User '{username}' logged in successfully.")
+
+                if username == "admin": # if the username is admin and password matches, launch admin panel, otherwise, launch user panel
+                    logging.info("Admin panel executed.")
+                    admin_panel()
+                user_panel(username)
+                break
+            else:
+                print("\nPassword is incorrect, Please try again\n")
+                attempts += 1 
+
 # -------------------- User Abilities --------------------
- 
+
 # User Panel
 def user_panel(username):    
     print("Login successful!")
     
     while True: 
-        print("\n1. Calculation")
-        print("2. Change PIN")
-        print("3. Guess the Number")
-        print("4. Log out")
+        print("\n1. Calculation", "\n2. Change PIN", "\n3. Guess the Number", "\n4. Exit")
         
         try:
-            choice = input("Please select a number: ").strip() # Get a number from user.
+            choice = safe_input("Please select a number: ", strip=True) # Get a number from user.
         except (KeyboardInterrupt, EOFError):
             print("\n\nInput stream closed. Cannot read input.\n")
             logging.error(f"EOFError: Input failed for {username}")
@@ -456,7 +475,7 @@ def change_pin(username):
     
     while True:
         try:
-            new_pin = getpass("Enter new PIN: ").strip() # Ask the user for the following new PIN
+            new_pin = safe_getpass("Enter new PIN: ").strip() # Ask the user for the following new PIN
         except (KeyboardInterrupt, EOFError):
                 print("\n\nInput stream closed. Cannot read input.\n")
                 logging.error(f"EOFError: Input failed for {username}")
@@ -466,7 +485,7 @@ def change_pin(username):
             print("PIN must be 4 digits or higher.")
             continue
         try:
-            confirm = getpass("Confirm your following PIN: ").strip() # Password Confirmation.
+            confirm = safe_getpass("Confirm your following PIN: ").strip() # Password Confirmation.
         except (KeyboardInterrupt, EOFError):
             print("\n\nInput stream closed. Cannot read input.\n")
             logging.error(f"EOFError: Input failed for {username}")
@@ -494,17 +513,22 @@ def change_pin(username):
     
 # Admin Panel
 def admin_panel(username="admin"):
+    """_summary_
+
+    Args:
+        username (str, optional): _description_. Defaults to "admin".
+
+    Returns:
+        TrTrue, None: Essential admin panel for admin
+    """
     print("Welcome Admin.")
     logging.info("Admin panel accessed.")
     
     while True:
-        print("\n1. Reset user file")
-        print("2. List of users")
-        print('3. User Panel')
-        print("4. Exit")
+        print("\n1. Reset user file", "\n2. List of users", "\n3. User Panel", "\n4. Logout")
         
         try:
-            choice = input("Choose an option: ").strip()
+            choice = safe_input("Choose an option: ", strip=True)
         except (KeyboardInterrupt, EOFError):
             print("\n\nInput stream closed. Cannot read input.\n")
             logging.error(f"EOFError: Input failed for {username}")
@@ -514,8 +538,8 @@ def admin_panel(username="admin"):
         if choice == "1":
             if os.path.exists(USER_FILE): # User file deletion mechanic
                 os.remove(USER_FILE)
-                with open(USER_FILE, 'wb') as file:
-                    file.write(orjson.dumps({}))
+                with user_file_lock:
+                    recreate_user()
                 logging.info(f"Admin reset user file at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
                 print("'users.json' has been reset.")
                 continue
@@ -542,17 +566,22 @@ def admin_panel(username="admin"):
             print("Invalid choice.")
             logging.warning("Wrong choice made, repeating process.")
     return True
-  
+
 # -------------------- Hidden functions --------------------
-  
+
 # Hidden admin setup function (PIN only)
 def hidden_function():
+    """_summary_
+
+    Returns:
+        _type_: _description_
+    """
     users = load_users()
     
     try:
         while True:
             try:
-                password = getpass("Enter new admin PIN (Pass is hidden): ").strip() # Get a new PIN for registering admin
+                password = safe_getpass("Enter new admin PIN (Pass is hidden): ").strip() # Get a new PIN for registering admin
             except (KeyboardInterrupt, EOFError):
                 print("\n\nInput stream closed, Cannot read input.\n")
                 logging.error(f"EOFError: Input failed")
@@ -566,7 +595,7 @@ def hidden_function():
                 print("Password must be at least 4 digits.")
                 continue
             try:
-                confirm = getpass("Confirm your PIN: ").strip() # Password confirmation
+                confirm = safe_getpass("Confirm your PIN: ").strip() # Password confirmation
             except (KeyboardInterrupt, EOFError):
                 print("\n\nInput stream closed. Cannot read input.\n")
                 logging.error("EOFError: Input failed")
@@ -578,7 +607,7 @@ def hidden_function():
             
             if "admin" in users: # If the 'admin' is already registered, confirm the overwrite.
                 try:
-                    choice = input('Admin PIN already exists, Overwrite? (y/n): ')
+                    choice = safe_input('Admin PIN already exists, Overwrite? (y/n): ', lower=True)
                 except (KeyboardInterrupt, EOFError):
                     print("\n\nInput stream closed. Cannot read input.\n")
                     logging.error("EOFError: Input failed")
@@ -610,67 +639,100 @@ def hidden_function():
     
 # -------------------- User Abilities (pt2) --------------------
 
+def get_input(prompt: str) -> str:
+    try:
+        while True:
+            value = input(prompt).strip()
+            return value
+    except (KeyboardInterrupt, EOFError):
+        print("\n\nInput stream closed. Cannot read input.\n")
+        logging.error(f"EOFError: Input failed")
+        return "" # or break, or fallback logic         
+    except ValueError:
+        print("Invalid Input, Please enter numeric values.")
+        logging.warning(f"Calculations gone wrong, non-digit entered.")
+        return "" # or break, or fallback logic
+    
 # Calculator
 def calc(username):
+    """A Simple calculator but bullet proof."""
     print(f"Welcome {username}")
     logging.info(f"User {username} accessed calculator.")
-    
-    # Get two numbers (both will be saved in 'numbers')
     while True:
         try:
-            try:
-                num1 = input("Enter a number: ").strip()
-                num2 = input("Enter a secondary number: ").strip()
-            except (KeyboardInterrupt, EOFError):
-                    print("\n\nInput stream closed. Cannot read input.\n")
-                    logging.error(f"EOFError: Input failed for {username}")
-                    return  # or break, or fallback logic         
-            
-            try: # Using an try/except block for catching errors
-                num1 = float(num1)
-                num2 = float(num2)
-            except ValueError:
-                print("Invalid Input, Please enter numeric values.")
-                logging.warning(f"Calculations gone wrong, non-digit entered by {username}.")
-                continue
-            
-            numbers = [num1, num2]
-            
+            numbers = []
+    
+    # Get numbers (they will be saved in 'numbers')
+            while True:
+                user_input = get_input("\nEnter numbers one by one (Type 'done' when finished): ") 
+                if user_input.lower().strip() == 'done':
+                    break
+                try:
+                    number = float(user_input)
+                    numbers.append(number)
+                except ValueError:
+                    print("Please enter a numeric value or 'done'")
+
+            # Check if any numbers entered
+            if not numbers:
+                print("No numbers entered")
+                return
+
+            # Use numpy array for a large chunk of numbers
+            arr = np.array(numbers)
+            print("Numbers entered", arr)
+
             # All types of math are combined.    
-            print("\nMultiplication =", num1 * num2)
-            if numbers[1] == 0:
-                logging.warning(f"One number have the value 0 by {username}, Canceling (Integer Division, Remainder)")
-                print("Integer Division = Cannot divide by zero.")
-                print("Remainder = Cannot divide by zero.")
-            else:    
-                print("Integer Division =", integer_division(num1 ,num2))
-                print("Remainder =", remainder(num1, num2))
-            print("Addition =", sum(numbers))
-            print("Subtraction =", subtraction(num1 , num2))        
-            
+            print("\nMultiplication =", np.prod(arr))
+            if len(numbers) == 2:
+                remainder(numbers)
+            else:
+                print("For remainder, You need enter two numbers only.")
+            print("Average =", np.mean(arr))
+            print("Addition =", np.sum(arr))
+            print("Subtraction =", np.subtract.reduce(arr))        
             try:
-                again = input("\nDo you want to recalculate again?: \n").strip().lower()
+                again = safe_input("\nDo you want to recalculate again?: \n", lower=True, strip=True)
             except (KeyboardInterrupt, EOFError):
                 print("\n\nInput stream closed. Cannot read input.\n")
                 logging.error(f"EOFError: Input failed for {username}")
-                return  # or break, or fallback logic    v
-            
+                return  # or break, or fallback logic
+                    
             if again != 'y':
                 break
         except Exception as e:
+            print("An error occurred. Please try again.")
             logging.error(f"Calculation failed: {e}")
-    return
+            return
 
-def subtraction(x, y):
-    return x - y
-def integer_division(x, y):
-    return round(x // y, 3)
-def remainder(x, y):
-    return x % y
+def remainder(arr: list[float]) -> float:
+    """
+    This Python function calculates the remainder of two numbers safely, checking for division by zero.
+    
+    :param arr: The `arr` parameter is expected to be a list of two float numbers `[x, y]` where `x` is
+    the dividend and `y` is the divisor. The function `remainder` calculates the remainder of `x`
+    divided by `y` using NumPy's `remainder`
+    :type arr: list[float]
+    :return: The function `remainder` is returning the remainder of the first element in the input list
+    divided by the second element in the input list using NumPy's `remainder` function. If either of the
+    elements in the input list is 0.0, a `ValueError` is raised with the message "Cannot divide by
+    zero".
+    """
+    if any(num == 0.0 for num in arr) == 0: raise ValueError("Cannot divide by zero")
+    x, y = arr[0], arr[1]
+    return np.remainder(x, y)
 
 # -------------------- User Abilities (pt3) --------------------
 
-def guess_game(username):
+def guess_game(username) -> None: # Can be changed for new return arguments
+    """_summary_
+
+    Args:
+        username (str): Gets a username for logging
+
+    Returns:
+        None: Returns nothing since it's an essential calculator 
+    """
     MAX_A = 5 # Give a attempt amount 
     attempt = 0
     target = randint(1, 20)
@@ -679,7 +741,7 @@ def guess_game(username):
     try:
         while True:   
             try:
-                guess = input("Guess a number (1-20): ").strip()
+                guess = safe_input("Guess a number (1-20): ", strip=True)
             except (KeyboardInterrupt, EOFError):
                     print("\n\nInput stream closed. Cannot read input.\n")
                     logging.error(f"EOFError: Input failed for {username}")
@@ -722,18 +784,21 @@ def guess_game(username):
 #     exec(type((lambda: 0).__code__)(0, 0, 0, 0, 0, 0, b'\x053', (), (), (), '', '', 0, b''))
 
 # -------------------- Main program --------------------
-@lru_cache(None)
 def main():
+    """
+    The main function in the Python code handles user input for sign-up, login, and exit options, with
+    error handling and logging implemented.
+    :return: In the `main()` function, if an `EOFError` occurs while trying to read , the program
+    will log an error message and then return from the function.
+    """
     logging.info("\nProgram started.")
     print(exp, fc_date)
     
     try:
         while True:
-            print('\n1. Sign-up')
-            print("2. Login")
-            print("3. Exit")
+            print('\n1. Sign-up', "\n2. Login", "\n3. Exit")
             try:
-                choice = input("Choose an option (1-3): ")
+                choice = safe_input("Choose an option (1-3): ", strip=True)
             except (KeyboardInterrupt, EOFError):
                 print("\n\nInput stream closed. Cannot read input.\n")
                 logging.error(f"EOFError: Input failed")
@@ -742,11 +807,11 @@ def main():
             # Depending on the choice, run the following functions
             if choice == "1":
                 print("\nStarting Sign-up")
-                time.sleep(2)
+                time.sleep(1)
                 sign_up()
             elif choice == "2":
                 print("\nStarting Login\n")
-                time.sleep(2)
+                time.sleep(1)
                 login()
             elif choice == "3":
                 print("Goodbye!")
@@ -760,7 +825,6 @@ def main():
             #     print("Thread object:", threading.Thread)
             else:
                 print("Invalid choice. Please try again.")
-                logging.warning("Incorrect choice made, repeating process.")
                 continue
     except Exception as e:
         logging.error(f"Program failed: {e}")
@@ -768,7 +832,9 @@ def main():
 # Run the program
 if __name__ == "__main__":
     try:
-        main()
+        exe = threading.Thread(target=main)
+        exe.start()
+        exe.join()
     except Exception:
         logging.exception("Unexpected crash in main execution")
         print("\nAn unexpected error occurred. Please check the log file for details.\n")
