@@ -549,6 +549,7 @@ def admin_panel(username="admin"):
                 with user_file_lock:
                     if recreate_user():
                         print("'users.json' has been reset.")
+                        users_cache = {}
                     else:
                         print("User file reset failed. Exiting program.")
                         logging.error("User file reset failed.")
