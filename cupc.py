@@ -530,6 +530,8 @@ def admin_panel(username="admin"):
     print("Welcome Admin.")
     logging.info("Admin panel accessed.")
     
+    global users_cache
+    
     while True:
         print("\n1. Reset user file", "\n2. List of users", "\n3. User Panel", "\n4. Logout")
         
@@ -545,9 +547,13 @@ def admin_panel(username="admin"):
             if os.path.exists(USER_FILE): # User file deletion mechanic
                 os.remove(USER_FILE)
                 with user_file_lock:
-                    recreate_user()
+                    if recreate_user():
+                        print("'users.json' has been reset.")
+                    else:
+                        print("User file reset failed. Exiting program.")
+                        logging.error("User file reset failed.")
+                        sys.exit(1)
                 logging.info(f"Admin reset user file at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-                print("'users.json' has been reset.")
                 continue
             else:
                 logging.warning("Admin tried to reset user file, but it was not found.")
