@@ -683,14 +683,14 @@ def calc(username):
             print("Numbers entered", arr)
 
             # All types of math are combined.    
-            print("\nMultiplication =", np.prod(arr))
+            print("\nMultiplication =", np.round(np.prod(arr), 3))
             if len(numbers) == 2:
-                remainder(numbers)
+                print("Remainder =", remainder(numbers))
             else:
                 print("For remainder, You need enter two numbers only.")
-            print("Average =", np.mean(arr))
-            print("Addition =", np.sum(arr))
-            print("Subtraction =", np.subtract.reduce(arr))        
+            print("Average =", np.round(np.mean(arr), 3))
+            print("Addition =", np.round(np.sum(arr), 2))
+            print("Subtraction =", np.round(np.subtract.reduce(arr), 2))        
             try:
                 again = safe_input("\nDo you want to recalculate again?: \n", lower=True, strip=True)
             except (KeyboardInterrupt, EOFError):
@@ -698,7 +698,7 @@ def calc(username):
                 logging.error(f"EOFError: Input failed for {username}")
                 return  # or break, or fallback logic
                     
-            if again != 'y':
+            if again.lower().strip() != 'y':
                 break
         except Exception as e:
             print("An error occurred. Please try again.")
@@ -718,7 +718,7 @@ def remainder(arr: list[float]) -> float:
     elements in the input list is 0.0, a `ValueError` is raised with the message "Cannot divide by
     zero".
     """
-    if any(num == 0.0 for num in arr) == 0: raise ValueError("Cannot divide by zero")
+    if any(num == 0.0 for num in arr): raise ValueError("Cannot divide by zero")
     x, y = arr[0], arr[1]
     return np.remainder(x, y)
 
