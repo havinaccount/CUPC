@@ -397,7 +397,13 @@ def login():
         return False
     
     dummy_hash = bcrypt.hashpw(b"dummy", bcrypt.gensalt(rounds=4)) # Making an easy dummy hash for securing brute-force attacks
-    stored_hash = users.get(username, dummy_hash).encode()
+    stored_hash = users.get(username, dummy_hash)
+    if isinstance(stored_hash, str):
+        stored_hash.encode()
+    else:
+        logging.error(f"Got stored hash as {type(stored_hash)}")
+        print("Something unexpected happened, Please check the log files")
+        sys.exit(1)
     
     attempts = 0
     
@@ -842,3 +848,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\nGoodbye!")
         sys.exit()
+
