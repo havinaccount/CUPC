@@ -1,9 +1,0 @@
-2025-10-14 11:34:18 - INFO - main - Line 828 - 
-Program started.
-2025-10-14 11:34:21 - WARNING - load_users - Line 107 - User file not found, starting with empty user list.
-2025-10-14 11:34:22 - INFO - sign_up - Line 221 - Sign-up attempt for username: shit
-2025-10-14 11:34:25 - DEBUG - hash_verify - Line 307 - hashed_pw type: <class 'bytes'>
-2025-10-14 11:34:25 - INFO - save_users - Line 190 - User data saved.
-2025-10-14 11:34:25 - INFO - save_users - Line 201 - User file hashed successfully 40dc217bfe166b6a31ad90c5b79e2526c08b8d1b37fe803fda9028cafd457f23
-2025-10-14 11:34:25 - INFO - sign_up - Line 279 - New user 'shit' registered.
-2025-10-14 11:34:31 - ERROR - main - Line 864 - Program failed: argument 'hashed_password': 'str' object cannot be converted to 'PyBytes'
