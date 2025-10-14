@@ -406,25 +406,24 @@ def login():
     
     dummy_hash = bcrypt.hashpw(b"dummy", bcrypt.gensalt(rounds=4)) # Making an easy dummy hash for securing brute-force attacks
     stored_hash = users.get(username, dummy_hash)
-    if not isinstance(stored_hash, bytes):
-        # noinspection PyBroadException
+    if isinstance(stored_hash, str):
         try:
-            stored_hash.encode()
-        except AttributeError as e:
-            logging.error(f"Got stored hash as {type(stored_hash)} and log: {e}")
-            print("Something unexpected happened, Please check the log files")
-            sys.exit(1)
+            stored_hash = stored_hash.encode()
         except Exception as e:
-            print("Something uncaught happened, Please check the log files.")
-            logging.error(f"Something uncaught happened: {e}")
-            sys.exit(1)
+            logging.error(f"Failed to encode stored hash for '{username}': {e}")
+            print("Unexpected error occurred. Please contact support.")
+            return False
 
     attempt: int = 0
     
     while attempt < MAX_ATTEMPTS:
             
             password = safe_getpass("PIN (Pass is hidden): ") # Getting password
-        
+
+            if password is None:
+                print("Login cancelled.")
+                return False
+
             if not password.isdigit(): # Making Password only look for digits. 
                 print("PIN must contain only digits.")
                 logging.warning("Login attempt failed: Non-digit PIN entered.")
