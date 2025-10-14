@@ -406,7 +406,7 @@ def login():
     
     dummy_hash = bcrypt.hashpw(b"dummy", bcrypt.gensalt(rounds=4)) # Making an easy dummy hash for securing brute-force attacks
     stored_hash = users.get(username, dummy_hash)
-    if isinstance(stored_hash, bytes):
+    if not isinstance(stored_hash, bytes):
         # noinspection PyBroadException
         try:
             stored_hash.encode()
@@ -445,7 +445,7 @@ def login():
             else:
                 print("\nPassword is incorrect, Please try again\n")
                 attempt += 1
-    return None
+    return True
 # -------------------- User Abilities --------------------
 
 # User Panel
