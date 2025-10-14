@@ -62,12 +62,14 @@ logging.basicConfig(
 )
 
 # -------------------- Variables --------------------
+def get_delay(attempt: int) -> int:
+    return 2 ** attempt
 
 USER_FILE = os.path.join(os.path.dirname(__file__), "users.json")
 MAX_ATTEMPTS = 5
 attempts = 0
 users_cache = None
-delay = 2 ** attempts
+delay = get_delay(attempts)
 user_file_lock = threading.RLock()
 USER_HASH = os.path.join(os.path.dirname(__file__), "users.hash")
 win_date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -76,7 +78,7 @@ fc_date = datetime.now().strftime("%Y-%m-%d %H:%M")
 exp = "Current datetime is:"
 
 print(f"Using USER_FILE at : {USER_FILE}")
-print("Exists:", os.path.exists(USER_FILE))
+print(f"Exists: {os.path.exists(USER_FILE)}")
 
 # -------------------- Still in development --------------------
 
@@ -92,6 +94,8 @@ def recreate_user():
 
 @lru_cache(maxsize=128)
 def normalize_username(username: str) -> str:
+    if not isinstance(username, str):
+        raise ValueError("Username must be a string")
     return unicodedata.normalize('NFC', username.strip())
 
 # -------------------- JSON Handling --------------------
@@ -159,49 +163,52 @@ def load_users():
     
     return users_cache # Flush the user_cache
 
-def validate_users_dict(users_dict):
+def validate_users_dict(users_dict) -> bool:
+    if not isinstance(users_dict, dict):
+        return False
     try:
-        if not isinstance(users_dict, dict):
-            return False
         for username, hashed_pw in users_dict.items():
-            if not isinstance(username, str):
-                return False
-            if not isinstance(hashed_pw, str):
+            if not isinstance(username, str) or not isinstance(hashed_pw, str):
                 return False
         return True
     except Exception as e:
         logging.error(f"Validation failed: {e}")
         return False
 # Save users to file
-def save_users(users_dict):
+def save_users(users_dict) -> None:
     if not validate_users_dict(users_dict):
         raise ValueError("Invalid user data format")
+
+    # Backup the existing files
     try:
         if os.path.exists(USER_FILE):
             with user_file_lock:
                 shutil.copy(USER_FILE, f'{USER_FILE}.{win_date}.bak') # Create a backup of the USER_FILE
-    except:
-        logging.exception("Unexpected error in save_users")
+    except Exception as e:
+        logging.exception(f"Unexpected error when backing up user file: {e}")
         raise
-    with user_file_lock: # With the thread lock inbound
-        try:
+
+    # Save new user data
+    try:
+        with user_file_lock:  # With the thread lock inbound
             with open(USER_FILE, 'wb') as file:
                 file.write(orjson.dumps(users_dict)) # Dump the sign-up info
             logging.info("User data saved.")
-        except Exception as e: # Catch the exception
-            print("Error saving user data. Please try again.")
-            logging.error(f"Failed to save user data: {e}")
-    
-        try:  
-            with open (USER_FILE, 'rb') as file:
-                data = file.read()
-            hasher_value = blake3(data).hexdigest()          
-            with open(USER_HASH, 'wb') as hasher_file:
-                hasher_file.write(hasher_value.encode('utf-8'))
-            logging.info(f"User file hashed successfully {hasher_value}")
-        except Exception as e:
-            print("Error saving user data. Please try again.")
-            logging.error(f"Failed to save user data or hash: {e}")
+    except Exception as e: # Catch the exception
+        print("Error saving user data. Please try again.")
+        logging.error(f"Failed to save user data: {e}")
+
+    # Hash and store integrity value
+    try:
+        with open (USER_FILE, 'rb') as file:
+            data = file.read()
+        hasher_value = blake3(data).hexdigest()
+        with open(USER_HASH, 'wb') as hasher_file:
+            hasher_file.write(hasher_value.encode('utf-8'))
+        logging.info(f"User file hashed successfully {hasher_value}")
+    except Exception as e:
+        print("Error saving user data. Please try again.")
+        logging.error(f"Failed to save user data or hash: {e}")
 
 # -------------------- User Actions --------------------
 
@@ -283,9 +290,7 @@ def sign_up():
 def safe_getpass(string: str, strip: bool = True) -> str | bool:
     try:
         value = getpass.getpass(string)
-        if strip:
-            value = value.strip()
-        return value
+        return value.strip() if strip else value
     except Exception as e:
         print("Exiting or error.")
         logging.error(f"Password interception: {e}")
@@ -318,6 +323,8 @@ def hash_verify(username, password):
 
 def hash_new_pin(username, new_pin):
     try:
+        if not isinstance(new_pin, str):
+            raise TypeError(f"Expected new_pin as str, got {type(new_pin)}")
         users = load_users()
         hashed_pw = bcrypt.hashpw(new_pin.encode(), bcrypt.gensalt(rounds=12))
         users[username] = hashed_pw.decode()
@@ -343,12 +350,11 @@ def hash_admin_pin(password):
         logging.error(f"Failed to change admin PIN: {e}")
         return False
 
-def verify_user_file_integrity():
+def verify_user_file_integrity() -> bool:
     try:
         with user_file_lock:
             with open(USER_FILE, 'rb') as file:
-                data = file.read()
-            current_hash = blake3(data).hexdigest()
+                current_hash = blake3(file.read()).hexdigest()
             
             with open(USER_HASH, 'r') as hasher_file:
                 stored_hash = hasher_file.read().strip()
@@ -366,8 +372,10 @@ def safe_input(prompt: str, strip: bool = True, lower: bool = False, upper: bool
             value = value.strip()
         if lower:
             value = value.lower()
-        if upper:
+        elif upper:
             value = value.upper()
+        if lower and upper:
+            raise ValueError("Can't apply both lower and upper case transformations.")
         return value
     except (KeyboardInterrupt, EOFError):
         print("\n\nInput stream closed. Cannot read input.\n")
@@ -704,22 +712,24 @@ def get_input(prompt: str) -> str | bool | None:
         return False # or break, or fallback logic
     
 # Calculator
-def calc(username):
-    """A Simple calculator but bulletproof."""
+def calc(username) -> None:
+    """A Simple, interactive calculator"""
     print(f"Welcome {username}")
     logging.info(f"User {username} accessed calculator.")
     while True:
         try:
             numbers = []
     
-    # Get numbers (they will be saved in 'numbers')
+            # Get numbers (they will be saved in 'numbers')
             while True:
                 user_input = get_input("\nEnter numbers one by one (Type 'done' when finished): ") 
+                if user_input is None:
+                    print("Nothing entered, Please try again.")
+                    continue
                 if user_input.lower().strip() == 'done':
                     break
                 try:
-                    number = float(user_input)
-                    numbers.append(number)
+                    numbers.append(float(user_input))
                 except ValueError:
                     print("Please enter a numeric value or 'done'")
 
@@ -730,17 +740,17 @@ def calc(username):
 
             # Use numpy array for a large chunk of numbers
             arr = np.array(numbers)
-            print("Numbers entered", arr)
+            print(f"Numbers entered: {arr}")
 
             # All types of math are combined.    
-            print("\nMultiplication =", np.round(np.prod(arr), 3))
+            print(f"\nMultiplication = {np.round(np.prod(arr), 3)}")
             if len(numbers) == 2:
-                print("Remainder =", remainder(numbers))
+                print(f"Remainder = {remainder(numbers)}")
             else:
                 print("For remainder, You need enter two numbers only.")
-            print("Average =", np.round(np.mean(arr), 3))
-            print("Addition =", np.round(np.sum(arr), 2))
-            print("Subtraction =", np.round(np.subtract.reduce(arr), 2))        
+            print(f"Average = {np.round(np.mean(arr), 3)}")
+            print(f"Addition = {np.round(np.sum(arr), 2)}")
+            print(f"Subtraction = {np.round(np.subtract.reduce(arr), 2)}")
             try:
                 again = safe_input("\nDo you want to recalculate again?: \n", lower=True, strip=True)
             except (KeyboardInterrupt, EOFError):
@@ -772,8 +782,9 @@ def remainder(arr: list[float]) -> float:
     elements in the input list is 0.0, a `ValueError` is raised with the message "Cannot divide by
     zero".
     """
+    if len(arr) != 2: raise ValueError("Input list must be a list of two float numbers.")
     if any(num == 0.0 for num in arr): raise ValueError("Cannot divide by zero")
-    x, y = arr[0], arr[1]
+    x, y = arr
     return np.remainder(x, y)
 
 # -------------------- User Abilities (pt3) --------------------
@@ -837,7 +848,14 @@ def guess_game(username) -> None: # Can be changed for new return arguments
 # def crash():
 #     exec(type((lambda: 0).__code__)(0, 0, 0, 0, 0, 0, b'\x053', (), (), (), '', '', 0, b''))
 
-# -------------------- Main program --------------------
+def warm_up_terminal():
+    # noinspection PyBroadException
+    try:
+        getpass.getpass(prompt="Press enter to continue...")
+    except Exception:
+        pass
+
+# -------------------- Main program ------------------
 def main():
     """
     The main function in the Python code handles user input for sign-up, login, and exit options, with
@@ -846,6 +864,7 @@ def main():
     will log an error message and then return from the function.
     """
     logging.info("\nProgram started.")
+    warm_up_terminal()
     print(exp, fc_date)
     
     try:
@@ -857,34 +876,41 @@ def main():
                 print("\n\nInput stream closed. Cannot read input.\n")
                 logging.error(f"EOFError: Input failed")
                 return  # or break, or fallback logic
-            
+
+            if choice is None:
+                print("No input received")
+                return
             # Depending on the choice, run the following functions
-            if choice == "1":
-                print("\nStarting Sign-up")
-                time.sleep(1)
-                sign_up()
-            elif choice == "2":
-                print("\nStarting Login\n")
-                time.sleep(1)
-                login()
-            elif choice == "3":
-                print("Goodbye!")
-                logging.info("Program exited successfully.")
-                break
-            elif choice == "9783":  # Hidden admin setup trigger
-                logging.info("Admin Setup triggered.")
-                hidden_function()
+            match choice:
+                case "1":
+                    print("Starting Sign-up")
+                    time.sleep(1)
+                    sign_up()
+                case "2":
+                    print("Starting Login")
+                    time.sleep(1)
+                    login()
+                case "3":
+                    print("Exiting")
+                    logging.info("Program ended")
+                    return
+                case "9783":
+                    hidden_function()
+                case _:
+                    print("Invalid choice, Please try again.")
+                    continue
             # Second phase testing.
-            # elif choice == "5":
-            #     print("Thread object:", threading.Thread)
-            else:
+            #   case "5":
+            #       print("Thread object:", threading.Thread)
+            if choice not in {"1", "2", "3", "9783"}:
                 print("Invalid choice. Please try again.")
                 continue
+
     except Exception as e:
         logging.error(f"Program failed: {e}")
-        
-# Run the program
-if __name__ == "__main__":
+        return
+
+def launch():
     # noinspection PyBroadException
     try:
         exe = threading.Thread(target=main)
@@ -898,3 +924,6 @@ if __name__ == "__main__":
         print("\nGoodbye!")
         sys.exit()
 
+# Run the program
+if __name__ == "__main__":
+    launch()
