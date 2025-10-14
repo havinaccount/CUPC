@@ -279,7 +279,7 @@ def sign_up():
         logging.info(f"New user '{username}' registered.")
         return
 
-def safe_getpass(string: str, strip: bool = True):
+def safe_getpass(string: str, strip: bool = True) -> str | bool:
     try:
         value = getpass.getpass(string)
         if strip:
@@ -288,7 +288,7 @@ def safe_getpass(string: str, strip: bool = True):
     except Exception as e:
         print("Exiting or error.")
         logging.error(f"Password interception: {e}")
-        return None
+        return False
 
 # -------------------- Hash handling --------------------
     
@@ -358,21 +358,20 @@ def verify_user_file_integrity():
         return False
 
 # New type of input with error handling (Please don't change this unless improving it)
-def safe_input(prompt: str, strip: bool = True, lower: bool = False) -> str:
-    """
-    :rtype: str
-    """
+def safe_input(prompt: str, strip: bool = True, lower: bool = False, upper: bool = False) -> str | bool:
     try:
         value = input(prompt)
         if strip:
             value = value.strip()
         if lower:
             value = value.lower()
+        if upper:
+            value = value.upper()
         return value
     except (KeyboardInterrupt, EOFError):
         print("\n\nInput stream closed. Cannot read input.\n")
         logging.error(f"EOFError: Input failed")
-        return None # or break, or fallback logic
+        return False # or break, or fallback logic
 
 # Login function with PIN validation and verification
 def login():
@@ -610,10 +609,11 @@ def hidden_function():
     """_summary_
 
     Returns:
-        _type_: _description_
+        bool: It does not need to be returning data
     """
     users = load_users()
-    
+    print("\n===ADMIN SETUP===")
+
     try:
         while True:
             try:
