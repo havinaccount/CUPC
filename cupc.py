@@ -246,13 +246,20 @@ def sign_up():
             print("PIN must contain only digits. Please try again.")
             logging.warning("Sign-up failed: Non-digit pin detected.")
             continue
-        
+
+        if password is None:
+            print("Nothing Entered, Please try again.")
+            continue
+
         if len(password) < 4: # Password length verification
             print("Password must contain 4 digits.")
             continue
         
         confirm = safe_getpass("Confirm your PIN: ")
-        
+        if confirm is None:
+            print("Nothing Entered, Please try again.")
+            continue
+
         if confirm != password:
             print("PINs do not match, Please try again.")
             continue
@@ -279,13 +286,9 @@ def safe_getpass(string: str, strip: bool = True):
             value = value.strip()
         return value
     except Exception as e:
-        print(f"Getting password failed: {e}")
+        print("Exiting or error.")
         logging.error(f"Password interception: {e}")
         return None
-    except (KeyboardInterrupt, EOFError):
-        print("\n\nInput stream closed. Cannot read input.\n")
-        logging.error(f"EOFError: Input failed")
-        return None # or break, or fallback logic
 
 # -------------------- Hash handling --------------------
     
