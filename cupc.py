@@ -380,7 +380,7 @@ def login():
     except (KeyboardInterrupt, EOFError):
         print("\n\nInput stream closed. Cannot read input.\n")
         logging.error(f"EOFError: Input failed")
-        return  # or break, or fallback logic
+        return False  # or break, or fallback logic
     
     if len(username) < 4: # Username length verification.
         print("Usernames should be longer, are you brute-forcing?")
@@ -399,15 +399,21 @@ def login():
     dummy_hash = bcrypt.hashpw(b"dummy", bcrypt.gensalt(rounds=4)) # Making an easy dummy hash for securing brute-force attacks
     stored_hash = users.get(username, dummy_hash)
     if isinstance(stored_hash, str):
-        stored_hash.encode()
-    else:
-        logging.error(f"Got stored hash as {type(stored_hash)}")
-        print("Something unexpected happened, Please check the log files")
-        sys.exit(1)
+        # noinspection PyBroadException
+        try:
+            stored_hash.encode()
+        except AttributeError as e:
+            logging.error(f"Got stored hash as {type(stored_hash)} and log: {e}")
+            print("Something unexpected happened, Please check the log files")
+            sys.exit(1)
+        except Exception as e:
+            print("Something uncaught happened, Please check the log files.")
+            logging.error(f"Something uncaught happened: {e}")
+            sys.exit(1)
+
+    attempt: int = 0
     
-    attempts = 0
-    
-    while attempts < MAX_ATTEMPTS:
+    while attempt < MAX_ATTEMPTS:
             
             password = safe_getpass("PIN (Pass is hidden): ") # Getting password
         
@@ -430,8 +436,8 @@ def login():
                 break
             else:
                 print("\nPassword is incorrect, Please try again\n")
-                attempts += 1 
-
+                attempt += 1
+    return None
 # -------------------- User Abilities --------------------
 
 # User Panel
@@ -471,11 +477,11 @@ def user_panel(username):
 
 # Change PIN
 def change_pin(username):
-    try: # Using an try/except block to prevent errors
+    try: # Using a try/except block to prevent errors
         users = load_users()
     except (orjson.JSONDecodeError, FileNotFoundError):
         print("User file not found")
-        return
+        return False
     
     logging.info(f"{username} requests a PIN change.")
     
@@ -485,7 +491,7 @@ def change_pin(username):
         except (KeyboardInterrupt, EOFError):
                 print("\n\nInput stream closed. Cannot read input.\n")
                 logging.error(f"EOFError: Input failed for {username}")
-                return  # or break, or fallback logic
+                return False  # or break, or fallback logic
         
         if len(new_pin) < 4: # PIN length verification
             print("PIN must be 4 digits or higher.")
@@ -495,7 +501,7 @@ def change_pin(username):
         except (KeyboardInterrupt, EOFError):
             print("\n\nInput stream closed. Cannot read input.\n")
             logging.error(f"EOFError: Input failed for {username}")
-            return  # or break, or fallback logic    
+            return False  # or break, or fallback logic
         
         if confirm != new_pin:
             print("PINs do not match, Please try again.")
@@ -513,7 +519,8 @@ def change_pin(username):
                 return False
         else:
             print("Password must contain only digits.")
-        return
+
+    return None
     
 # -------------------- Admin Abilities --------------------
     
@@ -540,7 +547,7 @@ def admin_panel(username="admin"):
         except (KeyboardInterrupt, EOFError):
             print("\n\nInput stream closed. Cannot read input.\n")
             logging.error(f"EOFError: Input failed for {username}")
-            return  # or break, or fallback logic")
+            return False  # or break, or fallback logic
         
         # Depending on the choice, Execute the following functions.
         if choice == "1":
@@ -598,7 +605,7 @@ def hidden_function():
             except (KeyboardInterrupt, EOFError):
                 print("\n\nInput stream closed, Cannot read input.\n")
                 logging.error(f"EOFError: Input failed")
-                return  # or break, or fallback logic
+                return False # or break, or fallback logic
             if not password.isdigit(): # Verify Digits
                 print("PIN must contain only digits.")
                 logging.warning("Admin Setup failed (partially), Non-digit password entered.")
@@ -612,20 +619,22 @@ def hidden_function():
             except (KeyboardInterrupt, EOFError):
                 print("\n\nInput stream closed. Cannot read input.\n")
                 logging.error("EOFError: Input failed")
-                return  # or break, or fallback logic    
+                return False # or break, or fallback logic
             
             if password != confirm:
                 print('Passwords do not match, Please try again.')
                 continue
             
-            if "admin" in users: # If the 'admin' is already registered, confirm the overwrite.
+            if "admin" in users: # If the 'admin' is already registered, confirm to overwrite.
                 try:
-                    choice = safe_input('Admin PIN already exists, Overwrite? (y/n): ', lower=True)
+                    choice = safe_input('Admin PIN already exists, Overwrite? (y/n): ', lower=True, strip=True)
                 except (KeyboardInterrupt, EOFError):
                     print("\n\nInput stream closed. Cannot read input.\n")
                     logging.error("EOFError: Input failed")
-                    return  # or break, or fallback logic    
-                if choice == 'n':
+                    return False # or break, or fallback logic
+
+                # Choice checking
+                if choice.lower().strip() == 'n':
                     break
                 elif choice == 'y':
                     try:
@@ -668,7 +677,7 @@ def get_input(prompt: str) -> str:
     
 # Calculator
 def calc(username):
-    """A Simple calculator but bullet proof."""
+    """A Simple calculator but bulletproof."""
     print(f"Welcome {username}")
     logging.info(f"User {username} accessed calculator.")
     while True:
@@ -746,7 +755,7 @@ def guess_game(username) -> None: # Can be changed for new return arguments
     Returns:
         None: Returns nothing since it's an essential calculator 
     """
-    MAX_A = 5 # Give a attempt amount 
+    max_a: int = 5 # Give n attempt amount
     attempt = 0
     target = randint(1, 20)
     logging.info(f"{username} Playing game.")
@@ -780,14 +789,14 @@ def guess_game(username) -> None: # Can be changed for new return arguments
                 break
             elif guess < target:
                 attempt += 1
-                print(f"Pick a higher number, Attempts remaining {MAX_A - attempt}")
+                print(f"Pick a higher number, Attempts remaining {max_a - attempt}")
             elif guess > target:
                 attempt += 1
-                print(f"You should pick a smaller number. Attempts remaining {MAX_A - attempt}")
+                print(f"You should pick a smaller number. Attempts remaining {max_a - attempt}")
             
             if attempt == 5:
                 print(f"You lost {username}, The number was {target}")
-                logging.info(f"{username} Lost the game after {MAX_A}")
+                logging.info(f"{username} Lost the game after {max_a}")
                 break       
     except Exception as e:
         logging.error(f"Game failed: {e}")
@@ -844,6 +853,7 @@ def main():
         
 # Run the program
 if __name__ == "__main__":
+    # noinspection PyBroadException
     try:
         exe = threading.Thread(target=main)
         exe.start()
