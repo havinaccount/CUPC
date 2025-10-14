@@ -439,12 +439,17 @@ def login():
                 if username == "admin": # if the username is admin and password matches, launch admin panel, otherwise, launch user panel
                     logging.info("Admin panel executed.")
                     admin_panel()
+                    return True
                 user_panel(username)
-                break
+                return True
             else:
                 print("\nPassword is incorrect, Please try again\n")
                 attempt += 1
-    return True
+
+    print("Maximum login attempts reached.")
+    logging.warning(f"Login failed: Too many attempts for '{username}'.")
+    return False
+
 # -------------------- User Abilities --------------------
 
 # User Panel
