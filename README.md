@@ -50,6 +50,11 @@ pyinstaller main.py --onefile --optimize=2 --clean --noupx
 
 - You can use `upx-dir=` for upx but it will make the pyinstaller file slower
 
+## Nuitka Build (Optional)
+```
+nuitka main.py --standalone --onefile --lto=yes --remove-output --output-dir=dist --mingw64
+```
+- MSVC is not tested but recommended
 ### Security Notes
 - PINs are hashed, and the app does limit login attempts.
 
