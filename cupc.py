@@ -256,6 +256,7 @@ def sign_up():
             continue
         
         confirm = safe_getpass("Confirm your PIN: ")
+
         if confirm is None:
             print("Nothing Entered, Please try again.")
             continue
@@ -540,7 +541,7 @@ def change_pin(username):
 # -------------------- Admin Abilities --------------------
     
 # Admin Panel
-def admin_panel(username="admin"):
+def admin_panel(username: str = "admin"):
     """_summary_
 
     Args:
@@ -576,7 +577,7 @@ def admin_panel(username="admin"):
                         print("User file reset failed. Exiting program.")
                         logging.error("User file reset failed.")
                         sys.exit(1)
-                logging.info(f"Admin reset user file at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                logging.info(f"Admin reset user file at {fc_date}")
                 continue
             else:
                 logging.warning("Admin tried to reset user file, but it was not found.")
@@ -589,7 +590,9 @@ def admin_panel(username="admin"):
         elif choice == "2":
             print("\nRegistered Users:")
             try:
-                for user in load_users().keys():
+                users = load_users()
+                if not users: print("User file isn't available."); logging.warning("User file isn't available for admin or empty."); continue
+                for user in users.keys():
                     print("-", user)
             except orjson.JSONDecodeError:
                 print("User file corrupted.")
@@ -636,7 +639,11 @@ def hidden_function():
                 print("\n\nInput stream closed. Cannot read input.\n")
                 logging.error("EOFError: Input failed")
                 return False # or break, or fallback logic
-            
+
+            if confirm is None:
+                print("Nothing entered, Please try again.")
+                continue
+
             if password != confirm:
                 print('Passwords do not match, Please try again.')
                 continue
@@ -661,6 +668,9 @@ def hidden_function():
                     except Exception as e:
                         logging.error(f"Admin hashing failed: {e}")
                         break
+                elif choice is None:
+                    print("Nothing entered, Please try again.")
+                    continue
                 else:
                     print("Wrong choice, Please try again later.")
             else:
@@ -677,19 +687,21 @@ def hidden_function():
     
 # -------------------- User Abilities (pt2) --------------------
 
-def get_input(prompt: str) -> str:
+def get_input(prompt: str) -> str | bool | None:
     try:
         while True:
             value = input(prompt).strip()
+            if not value:
+                return None
             return value
     except (KeyboardInterrupt, EOFError):
         print("\n\nInput stream closed. Cannot read input.\n")
         logging.error(f"EOFError: Input failed")
-        return "" # or break, or fallback logic         
+        return False # or break, or fallback logic
     except ValueError:
         print("Invalid Input, Please enter numeric values.")
         logging.warning(f"Calculations gone wrong, non-digit entered.")
-        return "" # or break, or fallback logic
+        return False # or break, or fallback logic
     
 # Calculator
 def calc(username):
@@ -735,7 +747,11 @@ def calc(username):
                 print("\n\nInput stream closed. Cannot read input.\n")
                 logging.error(f"EOFError: Input failed for {username}")
                 return  # or break, or fallback logic
-                    
+
+            if again is None:
+                print("Nothing entered, Please try again later.")
+                return
+
             if again.lower().strip() != 'y':
                 break
         except Exception as e:
