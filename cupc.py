@@ -272,9 +272,11 @@ def sign_up():
         logging.info(f"New user '{username}' registered.")
         return
 
-def safe_getpass(string):
+def safe_getpass(string: str, strip: bool = True):
     try:
         value = getpass.getpass(string)
+        if strip:
+            value = value.strip()
         return value
     except Exception as e:
         print(f"Getting password failed: {e}")
@@ -354,6 +356,9 @@ def verify_user_file_integrity():
 
 # New type of input with error handling (Please don't change this unless improving it)
 def safe_input(prompt: str, strip: bool = True, lower: bool = False) -> str:
+    """
+    :rtype: str
+    """
     try:
         value = input(prompt)
         if strip:
@@ -364,7 +369,7 @@ def safe_input(prompt: str, strip: bool = True, lower: bool = False) -> str:
     except (KeyboardInterrupt, EOFError):
         print("\n\nInput stream closed. Cannot read input.\n")
         logging.error(f"EOFError: Input failed")
-        return "" # or break, or fallback logic
+        return None # or break, or fallback logic
 
 # Login function with PIN validation and verification
 def login():
@@ -453,7 +458,11 @@ def user_panel(username):
             print("\n\nInput stream closed. Cannot read input.\n")
             logging.error(f"EOFError: Input failed for {username}")
             return  # or break, or fallback logic
-        
+
+        if not choice:
+            print("Nothing entered, Please try again.")
+            continue
+
         # Depending on the choice, launch the following functions
         if choice == "1":
             calc(username)
