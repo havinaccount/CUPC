@@ -281,11 +281,11 @@ def safe_getpass(string: str, strip: bool = True):
     except Exception as e:
         print(f"Getting password failed: {e}")
         logging.error(f"Password interception: {e}")
-        return "None"
+        return None
     except (KeyboardInterrupt, EOFError):
         print("\n\nInput stream closed. Cannot read input.\n")
         logging.error(f"EOFError: Input failed")
-        return "None" # or break, or fallback logic
+        return None # or break, or fallback logic
 
 # -------------------- Hash handling --------------------
     
