@@ -4,7 +4,7 @@ Setup file for CUPC, Please change the modules as CUPC update
 '''
 setup(
     name='CUPC',
-    version='1.0.0',
+    version='1.0.2',
     author='havinacoount',
     description='''Constant Username and Password Checker (CUPC)
     is an simple project that tries to replicate a simple Login portal
