@@ -530,7 +530,7 @@ def change_pin(username):
         
         if confirm != new_pin:
             print("PINs do not match, Please try again.")
-            continue
+            return
         
         if username not in users: # If username got corrupt in changing PIN section, Stop the process.
             print("User not found.")
@@ -640,6 +640,10 @@ def hidden_function():
                 logging.warning("Admin Setup failed (partially), Non-digit password entered.")
                 continue
 
+            if password is None:
+                print("Nothing entered. Please try again.")
+                continue
+
             if len(password) < 4: # Password length verification
                 print("Password must be at least 4 digits.")
                 continue
@@ -728,8 +732,10 @@ def calc(username) -> None:
                 if user_input is None:
                     print("Nothing entered, Please try again.")
                     continue
+
                 if user_input.lower().strip() == 'done':
                     break
+
                 try:
                     numbers.append(float(user_input))
                 except ValueError:
@@ -814,7 +820,7 @@ def guess_game(username) -> None: # Can be changed for new return arguments
                     logging.error(f"EOFError: Input failed for {username}")
                     return  # or break, or fallback logic
             
-            if not guess:
+            if guess is None:
                 print("Your guess could not be empty, Pick a number.")
                 continue
             
@@ -866,12 +872,14 @@ def main():
     will log an error message and then return from the function.
     """
     logging.info("\nProgram started.")
+
+    # For faster I/O executions
     warm_up_terminal()
     print(exp, fc_date)
     
     try:
         while True:
-            print('\n1. Sign-up', "\n2. Login", "\n3. Exit")
+            print('\n1. Sign-up', "\n2. Login", "\n3. Exit") # Inlining the print function for less overhead
             try:
                 choice = safe_input("Choose an option (1-3): ", strip=True)
             except (KeyboardInterrupt, EOFError):
@@ -912,6 +920,7 @@ def main():
         logging.error(f"Program failed: {e}")
         return
 
+# Launch script for modularizing
 def launch():
     # noinspection PyBroadException
     try:
