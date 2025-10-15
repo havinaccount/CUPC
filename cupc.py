@@ -907,8 +907,8 @@ def main():
                     print("Invalid choice, Please try again.")
                     continue
             # Second phase testing.
-            #   case "5":
-            #       print("Thread object:", threading.Thread)
+            #     case "5":
+            #         print("Thread object:", threading.Thread)
             if choice not in {"1", "2", "3", "9783"}:
                 print("Invalid choice. Please try again.")
                 continue
