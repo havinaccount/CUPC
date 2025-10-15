@@ -139,7 +139,7 @@ def load_users():
             with open(USER_FILE, 'rb') as file:
                 data = orjson.loads(file.read())
                 if not isinstance(data, dict):
-                    raise ValueError("User file corrupted: expected dict, got " + str(type(data)))
+                    raise ValueError(f"User file corrupted: expected dict, got {type(data)}")
                 users_cache = data
                 logging.info("User file loaded successfully.")
     except orjson.JSONDecodeError as e: # Catch the USER_FILE Corruption
@@ -219,7 +219,7 @@ def sign_up():
     
     while True:
         try:
-            username = normalize_username(safe_input("Choose a username: ", strip=True))
+            username: str = normalize_username(safe_input("Choose a username: ", strip=True))
         except (KeyboardInterrupt, EOFError):
             print("\n\nInput stream closed. Cannot read input.\n")
             logging.error(f"EOFError: Input failed")
@@ -304,13 +304,10 @@ def hash_verify(username, password):
         if not isinstance(password, str):
             raise TypeError(f"Expected password as str, got {type(password)}")
 
-        users = load_users() # Load the USER_FILE       
-
-        salt = bcrypt.gensalt(rounds=12)
+        users = load_users() # Load the USER_FILE
 
         try:
-            hashed_pw = bcrypt.hashpw(password.encode("utf-8"), salt) # Declare the hash_pw variable
-            logging.debug(f"hashed_pw type: {type(hashed_pw)}")
+            hashed_pw = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=12)) # Declare the hash_pw variable
         except Exception as e:
             logging.error(f"bcrypt.hashpw failed: {e}")
             return False
@@ -392,7 +389,7 @@ def login():
         return False
     
     try:
-        username = normalize_username(safe_input("Username: ", strip=True))
+        username: str = normalize_username(safe_input("Username: ", strip=True))
     except (KeyboardInterrupt, EOFError):
         print("\n\nInput stream closed. Cannot read input.\n")
         logging.error(f"EOFError: Input failed")
