@@ -527,7 +527,7 @@ def change_pin(username):
         
         if confirm != new_pin:
             print("PINs do not match, Please try again.")
-            return
+            continue
         
         if username not in users: # If username got corrupt in changing PIN section, Stop the process.
             print("User not found.")
