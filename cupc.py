@@ -479,25 +479,26 @@ def user_panel(username):
             continue
 
         # Depending on the choice, launch the following functions
-        if choice == "1":
-            calc(username)
-        elif choice == "2":
-            success = change_pin(username)
-            if success:
-                print("PIN changed successfully!")
-            else:
-                print("PIN change failed.")
-        elif choice == "3":
-            guess_game(username)
-        elif choice == "4":
-            print("Goodbye!")
-            logging.info("User successfully logged out.")
-            break
-        # If wrong choice is given, ask again.
-        else:
-            print("\nWrong choice, Please try again.")
-            logging.warning("Wrong Choice Entered, repeating choice process.")
-            continue
+        match choice:
+            case "1":
+                calc(username)
+            case "2":
+                success = change_pin(username)
+                if success:
+                    print("PIN changed successfully!")
+                else:
+                    print("PIN change failed.")
+            case "3":
+                guess_game(username)
+            case "4":
+                print("Goodbye!")
+                logging.info("User successfully logged out.")
+                break
+            # If wrong choice is given, ask again.
+            case _:
+                print("\nWrong choice, Please try again.")
+                logging.warning("Wrong Choice Entered, repeating choice process.")
+                continue
 
 # Change PIN
 def change_pin(username):
@@ -574,43 +575,44 @@ def admin_panel(username: str = "admin"):
             return False  # or break, or fallback logic
         
         # Depending on the choice, Execute the following functions.
-        if choice == "1":
-            if os.path.exists(USER_FILE): # User file deletion mechanic
-                os.remove(USER_FILE)
-                with user_file_lock:
-                    if recreate_user():
-                        print("'users.json' has been reset.")
-                        users_cache = {}
-                    else:
-                        print("User file reset failed. Exiting program.")
-                        logging.error("User file reset failed.")
-                        sys.exit(1)
-                logging.info(f"Admin reset user file at {fc_date}")
-                continue
-            else:
-                logging.warning("Admin tried to reset user file, but it was not found.")
-                print("User file not found.")
-                continue
-        elif choice == "4":
-            print("Goodbye!")
-            logging.info("Admin Exited Panel")
-            break
-        elif choice == "2":
-            print("\nRegistered Users:")
-            try:
-                users = load_users()
-                if not users: print("User file isn't available."); logging.warning("User file isn't available for admin or empty."); continue
-                for user in users.keys():
-                    print("-", user)
-            except orjson.JSONDecodeError:
-                print("User file corrupted.")
-                logging.warning("User file corrupted.")
-                continue
-        elif choice == "3":
-            user_panel(username)
-        else:
-            print("Invalid choice.")
-            logging.warning("Wrong choice made, repeating process.")
+        match choice:
+            case "1":
+                if os.path.exists(USER_FILE): # User file deletion mechanic
+                    os.remove(USER_FILE)
+                    with user_file_lock:
+                        if recreate_user():
+                            print("'users.json' has been reset.")
+                            users_cache = {}
+                        else:
+                            print("User file reset failed. Exiting program.")
+                            logging.error("User file reset failed.")
+                            sys.exit(1)
+                    logging.info(f"Admin reset user file at {fc_date}")
+                    continue
+                else:
+                    logging.warning("Admin tried to reset user file, but it was not found.")
+                    print("User file not found.")
+                    continue
+            case "4":
+                print("Goodbye!")
+                logging.info("Admin Exited Panel")
+                break
+            case "2":
+                print("\nRegistered Users:")
+                try:
+                    users = load_users()
+                    if not users: print("User file isn't available."); logging.warning("User file isn't available for admin or empty."); continue
+                    for user in users.keys():
+                        print("-", user)
+                except orjson.JSONDecodeError:
+                    print("User file corrupted.")
+                    logging.warning("User file corrupted.")
+                    continue
+            case "3":
+                user_panel(username)
+            case _:
+                print("Invalid choice.")
+                logging.warning("Wrong choice made, repeating process.")
     return True
 
 # -------------------- Hidden functions --------------------
