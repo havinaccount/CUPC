@@ -223,7 +223,11 @@ def sign_up():
         username: str = normalize_username(safe_input("Choose a username: ", strip=True))
         
         logging.info(f"Sign-up attempt for username: {username}")
-        
+
+        if username is None:
+            print("Nothing entered, Pleases try again.")
+            continue
+
         if username in users:
             print("Username already exists. Please choose a different one.")
             logging.warning(f"Sign-up failed: Username '{username}' already exists.")
@@ -246,13 +250,13 @@ def sign_up():
 
         password = safe_getpass("Choose a PIN (numbers only, Pass is hidden): ")
 
+        if password is None:
+            print("Nothing Entered, Please try again.")
+            continue
+
         if not password.isdigit(): # Numeric Verification
             print("PIN must contain only digits. Please try again.")
             logging.warning("Sign-up failed: Non-digit pin detected.")
-            continue
-
-        if password is None:
-            print("Nothing Entered, Please try again.")
             continue
 
         if len(password) < 4: # Password length verification
@@ -284,9 +288,10 @@ def sign_up():
         logging.info(f"New user '{username}' registered.")
         return
 
-def safe_getpass(string: str, strip: bool = True) -> str | bool:
+def safe_getpass(string: str, strip: bool = True) -> str | bool | None:
     try:
         value = getpass.getpass(string)
+        if not value: return None
         return value.strip() if strip else value
     except Exception as e:
         print("Exiting or error.")
@@ -359,7 +364,7 @@ def verify_user_file_integrity() -> bool:
         return False
 
 # New type of input with error handling (Please don't change this unless improving it)
-def safe_input(prompt: str, strip: bool = True, lower: bool = False, upper: bool = False) -> str | bool:
+def safe_input(prompt: str, strip: bool = True, lower: bool = False, upper: bool = False) -> str | bool | None:
     try:
         value = input(prompt)
         if strip:
@@ -370,7 +375,7 @@ def safe_input(prompt: str, strip: bool = True, lower: bool = False, upper: bool
             value = value.upper()
         if lower and upper:
             raise ValueError("Can't apply both lower and upper case transformations.")
-        return value
+        return None if not value else value
     except (KeyboardInterrupt, EOFError):
         print("\n\nInput stream closed. Cannot read input.\n")
         logging.error(f"EOFError: Input failed")
@@ -387,6 +392,10 @@ def login():
 
     username: str = normalize_username(safe_input("Username: ", strip=True))
     
+    if username is None:
+        print("Nothing entered, Please try again later.")
+        return False
+
     if len(username) < 4: # Username length verification.
         print("Usernames should be longer, are you brute-forcing?")
         time.sleep(4)
