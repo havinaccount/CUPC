@@ -16,12 +16,12 @@ setup(
         'orjson',
         'getpass4',
         'blake3',
-        'unicodedata',
+        'numpy',
     ],
     entry_points={
         'console_scripts': [
             'cupc=cupc:main'
         ]
     },
-    python_requires='>=3.8',
+    python_requires='>=3.10',
 )

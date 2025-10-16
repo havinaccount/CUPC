@@ -218,12 +218,8 @@ def sign_up():
     users = load_users()
     
     while True:
-        try:
-            username: str = normalize_username(safe_input("Choose a username: ", strip=True))
-        except (KeyboardInterrupt, EOFError):
-            print("\n\nInput stream closed. Cannot read input.\n")
-            logging.error(f"EOFError: Input failed")
-            return  # or break, or fallback logic
+
+        username: str = normalize_username(safe_input("Choose a username: ", strip=True))
         
         logging.info(f"Sign-up attempt for username: {username}")
         
@@ -387,13 +383,8 @@ def login():
     if not users:
         print("No users registered. Please sign up first.")
         return False
-    
-    try:
-        username: str = normalize_username(safe_input("Username: ", strip=True))
-    except (KeyboardInterrupt, EOFError):
-        print("\n\nInput stream closed. Cannot read input.\n")
-        logging.error(f"EOFError: Input failed")
-        return False  # or break, or fallback logic
+
+    username: str = normalize_username(safe_input("Username: ", strip=True))
     
     if len(username) < 4: # Username length verification.
         print("Usernames should be longer, are you brute-forcing?")
@@ -463,13 +454,8 @@ def user_panel(username):
     
     while True: 
         print("\n1. Calculation", "\n2. Change PIN", "\n3. Guess the Number", "\n4. Exit")
-        
-        try:
-            choice = safe_input("Please select a number: ", strip=True) # Get a number from user.
-        except (KeyboardInterrupt, EOFError):
-            print("\n\nInput stream closed. Cannot read input.\n")
-            logging.error(f"EOFError: Input failed for {username}")
-            return  # or break, or fallback logic
+
+        choice = safe_input("Please select a number: ", strip=True) # Get a number from user.
 
         if not choice:
             print("Nothing entered, Please try again.")
@@ -508,22 +494,14 @@ def change_pin(username):
     logging.info(f"{username} requests a PIN change.")
     
     while True:
-        try:
-            new_pin = safe_getpass("Enter new PIN: ").strip() # Ask the user for the following new PIN
-        except (KeyboardInterrupt, EOFError):
-                print("\n\nInput stream closed. Cannot read input.\n")
-                logging.error(f"EOFError: Input failed for {username}")
-                return False  # or break, or fallback logic
-        
+
+        new_pin = safe_getpass("Enter new PIN: ").strip() # Ask the user for the following new PIN
+
         if len(new_pin) < 4: # PIN length verification
             print("PIN must be 4 digits or higher.")
             continue
-        try:
-            confirm = safe_getpass("Confirm your following PIN: ").strip() # Password Confirmation.
-        except (KeyboardInterrupt, EOFError):
-            print("\n\nInput stream closed. Cannot read input.\n")
-            logging.error(f"EOFError: Input failed for {username}")
-            return False  # or break, or fallback logic
+
+        confirm = safe_getpass("Confirm your following PIN: ").strip() # Password Confirmation.
         
         if confirm != new_pin:
             print("PINs do not match, Please try again.")
@@ -563,13 +541,8 @@ def admin_panel(username: str = "admin"):
     
     while True:
         print("\n1. Reset user file", "\n2. List of users", "\n3. User Panel", "\n4. Logout")
-        
-        try:
-            choice = safe_input("Choose an option: ", strip=True)
-        except (KeyboardInterrupt, EOFError):
-            print("\n\nInput stream closed. Cannot read input.\n")
-            logging.error(f"EOFError: Input failed for {username}")
-            return False  # or break, or fallback logic
+
+        choice = safe_input("Choose an option: ", strip=True)
         
         # Depending on the choice, Execute the following functions.
         match choice:
@@ -626,12 +599,8 @@ def hidden_function():
 
     try:
         while True:
-            try:
-                password = safe_getpass("Enter new admin PIN (Pass is hidden): ").strip() # Get a new PIN for registering admin
-            except (KeyboardInterrupt, EOFError):
-                print("\n\nInput stream closed, Cannot read input.\n")
-                logging.error(f"EOFError: Input failed")
-                return False # or break, or fallback logic
+            password = safe_getpass("Enter new admin PIN (Pass is hidden): ").strip() # Get a new PIN for registering admin
+
             if not password.isdigit(): # Verify Digits
                 print("PIN must contain only digits.")
                 logging.warning("Admin Setup failed (partially), Non-digit password entered.")
@@ -810,12 +779,8 @@ def guess_game(username) -> None: # Can be changed for new return arguments
     
     try:
         while True:   
-            try:
-                guess = safe_input("Guess a number (1-20): ", strip=True)
-            except (KeyboardInterrupt, EOFError):
-                    print("\n\nInput stream closed. Cannot read input.\n")
-                    logging.error(f"EOFError: Input failed for {username}")
-                    return  # or break, or fallback logic
+
+            guess = safe_input("Guess a number (1-20): ", strip=True)
             
             if guess is None:
                 print("Your guess could not be empty, Pick a number.")
@@ -877,12 +842,8 @@ def main():
     try:
         while True:
             print('\n1. Sign-up', "\n2. Login", "\n3. Exit") # Inlining the print function for less overhead
-            try:
-                choice = safe_input("Choose an option (1-3): ", strip=True)
-            except (KeyboardInterrupt, EOFError):
-                print("\n\nInput stream closed. Cannot read input.\n")
-                logging.error(f"EOFError: Input failed")
-                return  # or break, or fallback logic
+
+            choice = safe_input("Choose an option (1-3): ", strip=True)
 
             if choice is None:
                 print("No input received")
