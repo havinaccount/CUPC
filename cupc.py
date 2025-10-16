@@ -254,12 +254,16 @@ def sign_up():
             print("Nothing Entered, Please try again.")
             continue
 
-        if not password.isdigit(): # Numeric Verification
+        if password == False:
+            print("Aborting sign-up")
+            break
+        
+        if not password.isdigit(): # Numeric Verification # type: ignore
             print("PIN must contain only digits. Please try again.")
             logging.warning("Sign-up failed: Non-digit pin detected.")
             continue
 
-        if len(password) < 4: # Password length verification
+        if len(password) < 4: # Password length verification # type: ignore
             print("Password must contain 4 digits.")
             continue
         
@@ -430,16 +434,21 @@ def login():
                 print("Login cancelled.")
                 return False
 
-            if not password.isdigit(): # Making Password only look for digits. 
+            if password == False:
+                print("Aborting Password.")
+                time.sleep(2)
+                break
+            
+            if not password.isdigit(): # Making Password only look for digits. # type: ignore
                 print("PIN must contain only digits.")
                 logging.warning("Login attempt failed: Non-digit PIN entered.")
                 continue
         
-            if len(password) < 4: # Verifying password length.
+            if len(password) < 4: # Verifying password length. # type: ignore
                 print("Password must contain 4 digits.")
                 continue
         
-            if bcrypt.checkpw(password.encode(), stored_hash): # If the encoded password that we received matches our stored hash, log in.
+            if bcrypt.checkpw(password.encode(), stored_hash): # If the encoded password that we received matches our stored hash, log in. # type: ignore
                 logging.info(f"User '{username}' logged in successfully.")
 
                 if username == "admin": # if the username is admin and password matches, launch admin panel, otherwise, launch user panel
@@ -505,13 +514,13 @@ def change_pin(username):
     
     while True:
 
-        new_pin = safe_getpass("Enter new PIN: ").strip() # Ask the user for the following new PIN
+        new_pin = safe_getpass("Enter new PIN: ") # Ask the user for the following new PIN 
 
-        if len(new_pin) < 4: # PIN length verification
+        if len(new_pin) < 4: # PIN length verification # type: ignore
             print("PIN must be 4 digits or higher.")
             continue
 
-        confirm = safe_getpass("Confirm your following PIN: ").strip() # Password Confirmation.
+        confirm = safe_getpass("Confirm your following PIN: ") # Password Confirmation. # type: ignore
         
         if confirm != new_pin:
             print("PINs do not match, Please try again.")
@@ -521,7 +530,7 @@ def change_pin(username):
             print("User not found.")
             logging.warning(f"PIN change failed: {username} not found")
         
-        if new_pin.isdigit(): # If all the requirements are fulfilled, change the pin using hashing mechanic
+        if new_pin.isdigit(): # If all the requirements are fulfilled, change the pin using hashing mechanic # type: ignore
             success = hash_new_pin(username, new_pin)
             if success:
                 return True
@@ -529,8 +538,6 @@ def change_pin(username):
                 return False
         else:
             print("Password must contain only digits.")
-
-    return None
     
 # -------------------- Admin Abilities --------------------
     
@@ -609,9 +616,9 @@ def hidden_function():
 
     try:
         while True:
-            password = safe_getpass("Enter new admin PIN (Pass is hidden): ").strip() # Get a new PIN for registering admin
+            password = safe_getpass("Enter new admin PIN (Pass is hidden): ") # Get a new PIN for registering admin
 
-            if not password.isdigit(): # Verify Digits
+            if not password.isdigit(): # Verify Digits # type: ignore
                 print("PIN must contain only digits.")
                 logging.warning("Admin Setup failed (partially), Non-digit password entered.")
                 continue
@@ -620,11 +627,11 @@ def hidden_function():
                 print("Nothing entered. Please try again.")
                 continue
 
-            if len(password) < 4: # Password length verification
+            if len(password) < 4: # Password length verification # type: ignore 
                 print("Password must be at least 4 digits.")
                 continue
             try:
-                confirm = safe_getpass("Confirm your PIN: ").strip() # Password confirmation
+                confirm = safe_getpass("Confirm your PIN: ") # Password confirmation
             except (KeyboardInterrupt, EOFError):
                 print("\n\nInput stream closed. Cannot read input.\n")
                 logging.error("EOFError: Input failed")
@@ -639,30 +646,25 @@ def hidden_function():
                 continue
             
             if "admin" in users: # If the 'admin' is already registered, confirm to overwrite.
-                try:
                     choice = safe_input('Admin PIN already exists, Overwrite? (y/n): ', lower=True, strip=True)
-                except (KeyboardInterrupt, EOFError):
-                    print("\n\nInput stream closed. Cannot read input.\n")
-                    logging.error("EOFError: Input failed")
-                    return False # or break, or fallback logic
 
                 # Choice checking
-                if choice.lower().strip() == 'n':
-                    break
-                elif choice == 'y':
-                    try:
-                        hash_admin_pin(password)
-                        print("Admin PIN overwritten successfully.")
-                        logging.info("Admin PIN overwritten.")
+                    if choice.lower().strip() == 'n': # type: ignore
                         break
-                    except Exception as e:
-                        logging.error(f"Admin hashing failed: {e}")
-                        break
-                elif choice is None:
-                    print("Nothing entered, Please try again.")
-                    continue
-                else:
-                    print("Wrong choice, Please try again later.")
+                    elif choice == 'y':
+                        try:
+                            hash_admin_pin(password)
+                            print("Admin PIN overwritten successfully.")
+                            logging.info("Admin PIN overwritten.")
+                            break
+                        except Exception as e:
+                            logging.error(f"Admin hashing failed: {e}")
+                            break
+                    elif choice is None:
+                        print("Nothing entered, Please try again.")
+                        continue
+                    else:
+                        print("Wrong choice, Please try again later.")
             else:
                 try:
                     hash_admin_pin(password)
@@ -709,7 +711,7 @@ def calc(username) -> None:
                     print("Nothing entered, Please try again.")
                     continue
 
-                if user_input.lower().strip() == 'done':
+                if user_input.lower().strip() == 'done': # type: ignore
                     break
 
                 try:
@@ -746,7 +748,7 @@ def calc(username) -> None:
                 print("Nothing entered, Please try again later.")
                 return
 
-            if again.lower().strip() != 'y':
+            if again.lower().strip() != 'y': # type: ignore
                 break
         except Exception as e:
             print(colorama.Fore.RED + "FATAL: An error occurred. Please try again.")
@@ -796,7 +798,7 @@ def guess_game(username) -> None: # Can be changed for new return arguments
                 print("Your guess could not be empty, Pick a number.")
                 continue
             
-            if guess.isdigit():
+            if guess.isdigit(): # type: ignore
                 guess = int(guess)
             else:
                 print("You should guess a number.")
