@@ -24,7 +24,7 @@ CUPC is a simple Python-based password checker that allows users to sign up and 
 
 ## Getting Started
 ### Requirements
-- Python 3.10+ (Because of using case)
+- Python 3.10+ (Because of `match` usage)
 
 - `bcrypt`
 
