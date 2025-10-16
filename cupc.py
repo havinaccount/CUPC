@@ -31,11 +31,12 @@
 # Update 1: Password now can be hashed easily.
 # Update 2: Logging is added for debugging program.
 # Update 3: Added time for avoiding brute-force attacks
-
+# Update 4: Added colorama for colored exception catching
+# Update 5: Limiting const choices, Example: 'const: str = value' means const is only getting strings
 
 # -------------------- Library --------------------
 
-from functools import lru_cache
+from functools import lru_cache # Using lru_cache to call 'normalize_username()' faster
 import getpass # Using getpass to hide input
 import orjson # Using orjson for faster read and write (ujson deprecated)
 import os # Using os for user file deletion and dumping
@@ -49,12 +50,12 @@ import shutil # Using shutil for creating file backups
 from blake3 import blake3 # For multithreaded cryptography and file hashing
 import unicodedata # For username normalizations
 import sys # For a cleaner and more stable code exit
-import numpy as np
-import colorama
+import numpy as np # For fast calculations
+import colorama # For coloring Exceptions
 
 # Following explanations may change depending on bugfixes and new features
 
-# AI Generated (line 40-45)
+# AI Generated (line 59-64)
 logging.basicConfig(
     filename='ex.log',
     level=logging.DEBUG,
@@ -63,14 +64,12 @@ logging.basicConfig(
 )
 
 # -------------------- Variables --------------------
-def get_delay(attempt: int) -> int:
-    return 2 ** attempt
 
 USER_FILE = os.path.join(os.path.dirname(__file__), "users.json")
 MAX_ATTEMPTS = 5
 attempts = 0
 users_cache = None
-delay = get_delay(attempts)
+delay = lambda attempt: 2 ** attempt
 user_file_lock = threading.RLock()
 USER_HASH = os.path.join(os.path.dirname(__file__), "users.hash")
 win_date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -89,7 +88,7 @@ def recreate_user():
             file.write(orjson.dumps({}))
             return True
     except orjson.JSONDecodeError as e:
-        print("USER_FILE is corrupted")
+        print(colorama.Fore.RED + "FATAL: USER_FILE is corrupted" + colorama.Style.RESET_ALL)
         logging.warning(f"User file corrupted, starting fresh: {e}")
         return False
 
@@ -107,23 +106,20 @@ def load_users():
 
     if users_cache is not None:
         return users_cache # Return cached users if already loaded
-
+    
+    # Check for 'USER_FILE' existence
     if not os.path.exists(USER_FILE):
         logging.warning("User file not found, starting with empty user list.")
         with user_file_lock:
-            try:
-                recreate_user() # Reset the USER_FILE
-                if not recreate_user():
-                    print("Reset unsuccessful")
-                    sys.exit(1)
-            except orjson.JSONDecodeError as e:
-                print("User file is corrupted, exiting.")
-                logging.error(f"User file is corrupted: {e}")
+            recreate_user() # Reset the USER_FILE
+        if not recreate_user():
+            print(colorama.Fore.RED + "FATAL: Reset unsuccessful" + colorama.Style.RESET_ALL)
+            sys.exit(1)
         users_cache = {} # Give user_cache a storage
         return users_cache # Flush users_cache
 
     if not verify_user_file_integrity():
-        logging.error("User file integrity tampered")
+        logging.error(colorama.Fore.RED + "FATAL: User file integrity tampered" + colorama.Style.RESET_ALL)
         print("Warning: User file integrity is tampered. Resetting users.")
         with user_file_lock:
             if os.path.exists(USER_FILE + '.tamp'):
@@ -131,7 +127,7 @@ def load_users():
             os.rename(USER_FILE, USER_FILE + '.tamp')
             recreate_user()
             if not recreate_user():
-                print("Reset unsuccessful.")
+                print(colorama.Fore.RED + "FATAL: Reset unsuccessful." + colorama.Style.RESET_ALL)
                 sys.exit(1)
         users_cache = {}
         return users_cache
@@ -140,12 +136,12 @@ def load_users():
             with open(USER_FILE, 'rb') as file:
                 data = orjson.loads(file.read())
                 if not isinstance(data, dict):
-                    raise ValueError(f"User file corrupted: expected dict, got {type(data)}")
+                    raise ValueError(colorama.Fore.RED + f"FATAL: User file corrupted: expected dict, got {type(data)}" + colorama.Style.RESET_ALL)
                 users_cache = data
                 logging.info("User file loaded successfully.")
     except orjson.JSONDecodeError as e: # Catch the USER_FILE Corruption
         logging.error(f"User file is corrupted: {e}\n\n Starting with empty user list.")
-        print("Warning, User data file was corrupted, All accounts have been removed.")
+        print(colorama.Fore.YELLOW + "Warning: User data file was corrupted, All accounts have been removed." + colorama.Style.RESET_ALL)
         try:
             with user_file_lock:    
                 os.rename(USER_FILE, USER_FILE + ".corrupted") # Take a backup of the corrupted user_file
@@ -156,7 +152,7 @@ def load_users():
             users_cache = {}
     except Exception as e: # Catch another exception
         logging.error(f"Failed to load user file {e}")
-        print(colorama.Fore.RED + "FATAL: System error, Starting with empty user list.")
+        print(colorama.Fore.RED + "FATAL: System error, Starting with empty user list." + colorama.Style.RESET_ALL)
         users_cache = {}
     
     if not users_cache:
@@ -196,7 +192,7 @@ def save_users(users_dict) -> None:
                 file.write(orjson.dumps(users_dict)) # Dump the sign-up info
             logging.info("User data saved.")
     except Exception as e: # Catch the exception
-        print(colorama.Fore.RED + "FATAL: Error saving user data. Please try again.")
+        print(colorama.Fore.RED + "FATAL: Error saving user data. Please try again." + colorama.Style.RESET_ALL)
         logging.error(f"Failed to save user data: {e}")
 
     # Hash and store integrity value
@@ -208,7 +204,7 @@ def save_users(users_dict) -> None:
             hasher_file.write(hasher_value.encode('utf-8'))
         logging.info(f"User file hashed successfully {hasher_value}")
     except Exception as e:
-        print(colorama.Fore.RED + "FATAL: Error saving user data. Please try again.")
+        print(colorama.Fore.RED + "FATAL: Error saving user data. Please try again." + colorama.Style.RESET_ALL)
         logging.error(f"Failed to save user data or hash: {e}")
 
 # -------------------- User Actions --------------------
@@ -220,7 +216,7 @@ def sign_up():
     
     while True:
 
-        username: str = normalize_username(safe_input("Choose a username: ", strip=True))
+        username: str = normalize_username(safe_input("Choose a username: ", strip=True)) # Make an str username const
         
         logging.info(f"Sign-up attempt for username: {username}")
 
@@ -308,7 +304,7 @@ def safe_getpass(string: str, strip: bool = True) -> str | bool | None:
 def hash_verify(username, password):
     try:
         if not isinstance(password, str):
-            raise TypeError(f"Expected password as str, got {type(password)}")
+            raise TypeError(colorama.Fore.RED + f"FATAL: Expected password as str, got {type(password)}" + colorama.Style.RESET_ALL)
 
         users = load_users() # Load the USER_FILE
 
@@ -327,7 +323,7 @@ def hash_verify(username, password):
 def hash_new_pin(username, new_pin):
     try:
         if not isinstance(new_pin, str):
-            raise TypeError(f"Expected new_pin as str, got {type(new_pin)}")
+            raise TypeError(colorama.Fore.RED + f"Expected new_pin as str, got {type(new_pin)}" + colorama.Style.RESET_ALL)
         users = load_users()
         hashed_pw = bcrypt.hashpw(new_pin.encode(), bcrypt.gensalt(rounds=12))
         users[username] = hashed_pw.decode()
@@ -378,7 +374,7 @@ def safe_input(prompt: str, strip: bool = True, lower: bool = False, upper: bool
         elif upper:
             value = value.upper()
         if lower and upper:
-            raise ValueError("Can't apply both lower and upper case transformations.")
+            raise ValueError(colorama.Fore.YELLOW + "Warning: Can't apply both lower and upper case transformations." + colorama.Style.RESET_ALL)
         return None if not value else value
     except (KeyboardInterrupt, EOFError):
         print("\n\nInput stream closed. Cannot read input.\n")
@@ -421,10 +417,10 @@ def login():
             stored_hash = stored_hash.encode()
         except Exception as e:
             logging.error(f"Failed to encode stored hash for '{username}': {e}")
-            print(colorama.Fore.RED + "FATAL: Unexpected error occurred. Please contact support.")
+            print(colorama.Fore.RED + "FATAL: Unexpected error occurred. Please contact support." + colorama.Style.RESET_ALL)
             return False
 
-    attempt: int = 0
+    attempt: int = 0 # Make an int const
     
     while attempt < MAX_ATTEMPTS:
             
@@ -462,7 +458,6 @@ def login():
                 attempt += 1
 
     print("Maximum login attempts reached.")
-    logging.warning(f"Login failed: Too many attempts for '{username}'.")
     return False
 
 # -------------------- User Abilities --------------------
@@ -571,14 +566,14 @@ def admin_panel(username: str = "admin"):
                             print("'users.json' has been reset.")
                             users_cache = {}
                         else:
-                            print("User file reset failed. Exiting program.")
+                            print(colorama.Fore.RED + "FATAL: User file reset failed. Exiting program." + colorama.Style.RESET_ALL)
                             logging.error("User file reset failed.")
                             sys.exit(1)
                     logging.info(f"Admin reset user file at {fc_date}")
                     continue
                 else:
                     logging.warning("Admin tried to reset user file, but it was not found.")
-                    print("User file not found.")
+                    print(colorama.Fore.YELLOW + "Warning: User file not found." + colorama.Style.RESET_ALL)
                     continue
             case "4":
                 print("Goodbye!")
@@ -592,7 +587,7 @@ def admin_panel(username: str = "admin"):
                     for user in users.keys():
                         print("-", user)
                 except orjson.JSONDecodeError:
-                    print("User file corrupted.")
+                    print(colorama.Fore.RED + "FATAL: User file corrupted." + colorama.Style.RESET_ALL)
                     logging.warning("User file corrupted.")
                     continue
             case "3":
@@ -679,20 +674,14 @@ def hidden_function():
     
 # -------------------- User Abilities (pt2) --------------------
 
-def get_input(prompt: str) -> str | bool | None:
+def get_input(prompt: str) -> str | bool | None: # Limit the return options
     try:
         while True:
             value = input(prompt).strip()
-            if not value:
-                return None
-            return value
+            return value if value else None
     except (KeyboardInterrupt, EOFError):
         print("\n\nInput stream closed. Cannot read input.\n")
         logging.error(f"EOFError: Input failed")
-        return False # or break, or fallback logic
-    except ValueError:
-        print("Invalid Input, Please enter numeric values.")
-        logging.warning(f"Calculations gone wrong, non-digit entered.")
         return False # or break, or fallback logic
     
 # Calculator
@@ -751,7 +740,7 @@ def calc(username) -> None:
             if again.lower().strip() != 'y': # type: ignore
                 break
         except Exception as e:
-            print(colorama.Fore.RED + "FATAL: An error occurred. Please try again.")
+            print(colorama.Fore.RED + "FATAL: An error occurred. Please try again." + colorama.Style.RESET_ALL)
             logging.error(f"Calculation failed: {e}")
             return
 
@@ -768,8 +757,8 @@ def remainder(arr: list[float]) -> float:
     elements in the input list is 0.0, a `ValueError` is raised with the message "Cannot divide by
     zero".
     """
-    if len(arr) != 2: raise ValueError("Input list must be a list of two float numbers.")
-    if any(num == 0.0 for num in arr): raise ValueError("Cannot divide by zero")
+    if len(arr) != 2: raise ValueError(colorama.Fore.YELLOW + "Warning: Input list must be a list of two float numbers." + colorama.Style.RESET_ALL)
+    if any(num == 0.0 for num in arr): raise ValueError(colorama.Fore.RED + "FATAL: Cannot divide by zero" + colorama.Style.RESET_ALL)
     x, y = arr
     return np.remainder(x, y)
 
@@ -797,17 +786,17 @@ def guess_game(username) -> None: # Can be changed for new return arguments
             if guess is None:
                 print("Your guess could not be empty, Pick a number.")
                 continue
-            
-            if guess.isdigit(): # type: ignore
+            # Check for the number being digits
+            try:
                 guess = int(guess)
-            else:
-                print("You should guess a number.")
+            except ValueError:
+                print(colorama.Fore.YELLOW + "Warning: You should guess a number." + colorama.Style.RESET_ALL)
                 continue
-            
+            # Minimize the options
             if guess < 1 or guess > 20:
                 print("You should pick a number between 1 and 20")
                 continue
-            
+            # Check for equality of target
             if guess == target:
                 print("You won!")
                 logging.info(f"{username} Exited game successfully")
@@ -819,7 +808,7 @@ def guess_game(username) -> None: # Can be changed for new return arguments
                 attempt += 1
                 print(f"You should pick a smaller number. Attempts remaining {max_a - attempt}")
             
-            if attempt == 5:
+            if attempt == 5: # Check for attempt count
                 print(f"You lost {username}, The number was {target}")
                 logging.info(f"{username} Lost the game after {max_a}")
                 break       
@@ -851,44 +840,39 @@ def main():
     warm_up_terminal()
     print(exp, fc_date)
     
-    try:
-        while True:
-            print('\n1. Sign-up', "\n2. Login", "\n3. Exit") # Inlining the print function for less overhead
+    while True:
+        print('\n1. Sign-up', "\n2. Login", "\n3. Exit") # Inlining the print function for less overhead
 
-            choice = safe_input("Choose an option (1-3): ", strip=True)
+        choice = safe_input("Choose an option (1-3): ", strip=True)
 
-            if choice is None:
-                print("No input received")
-                return
+        if choice is None:
+            print("No input received")
+            return
             # Depending on the choice, run the following functions
-            match choice:
-                case "1":
-                    print("Starting Sign-up")
-                    time.sleep(1)
-                    sign_up()
-                case "2":
-                    print("Starting Login")
-                    time.sleep(1)
-                    login()
-                case "3":
-                    print("Exiting")
-                    logging.info("Program ended")
-                    return
-                case "9783":
-                    hidden_function()
-                case _:
-                    print("Invalid choice, Please try again.")
-                    continue
-            # Second phase testing.
-            #     case "5":
-            #         print("Thread object:", threading.Thread)
-            if choice not in {"1", "2", "3", "9783"}:
-                print("Invalid choice. Please try again.")
+        match choice:
+            case "1":
+                print("Starting Sign-up")
+                time.sleep(1)
+                sign_up()
+            case "2":
+                print("Starting Login")
+                time.sleep(1)
+                login()
+            case "3":
+                print("Exiting")
+                logging.info("Program ended")
+                return
+            case "9783":
+                hidden_function()
+            case _:
+                print("Invalid choice, Please try again.")
                 continue
-
-    except Exception as e:
-        logging.error(f"Program failed: {e}")
-        return
+        # Second phase testing.
+        #     case "5":
+        #         print("Thread object:", threading.Thread)
+        if choice not in {"1", "2", "3", "9783"}:
+            print("Invalid choice. Please try again.")
+            continue
 
 # Launch script for modularizing
 def launch():
@@ -897,9 +881,9 @@ def launch():
         exe = threading.Thread(target=main)
         exe.start()
         exe.join()
-    except Exception:
-        logging.exception("Unexpected crash in main execution")
-        print(colorama.Fore.RED + "\nAn unexpected error occurred. Please check the log file for details.\n")
+    except Exception as e:
+        logging.exception(f"FATAL: Unexpected crash in main execution: {e}")
+        print(colorama.Fore.RED + "\nAn unexpected error occurred. Please check the log file for details.\n" + colorama.Style.RESET_ALL)
         sys.exit(1)
     except KeyboardInterrupt:
         print("\nGoodbye!")
