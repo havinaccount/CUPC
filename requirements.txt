@@ -3,3 +3,4 @@ orjson # For fast json interaction
 bcrypt # For hashing passwords
 getpass4 # For hiding input
 blake3 # For anti-tampering users.json file
+colorama # For colored text
