@@ -1,0 +1,5 @@
+numpy
+orjson
+bcrypt
+getpass4
+blake3
