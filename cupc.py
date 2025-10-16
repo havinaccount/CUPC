@@ -817,7 +817,7 @@ def guess_game(username) -> None: # Can be changed for new return arguments
 
 # Log testing, Hanging test.
 # def crash():
-#     exec(type((lambda: 0).__code__)(0, 0, 0, 0, 0, 0, b'\x053', (), (), (), '', '', 0, b''))
+#    raise Exception
 
 def warm_up_terminal():
     # noinspection PyBroadException
