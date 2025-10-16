@@ -50,6 +50,7 @@ from blake3 import blake3 # For multithreaded cryptography and file hashing
 import unicodedata # For username normalizations
 import sys # For a cleaner and more stable code exit
 import numpy as np
+import colorama
 
 # Following explanations may change depending on bugfixes and new features
 
@@ -155,7 +156,7 @@ def load_users():
             users_cache = {}
     except Exception as e: # Catch another exception
         logging.error(f"Failed to load user file {e}")
-        print("System error, Starting with empty user list.")
+        print(colorama.Fore.RED + "FATAL: System error, Starting with empty user list.")
         users_cache = {}
     
     if not users_cache:
@@ -195,7 +196,7 @@ def save_users(users_dict) -> None:
                 file.write(orjson.dumps(users_dict)) # Dump the sign-up info
             logging.info("User data saved.")
     except Exception as e: # Catch the exception
-        print("Error saving user data. Please try again.")
+        print(colorama.Fore.RED + "FATAL: Error saving user data. Please try again.")
         logging.error(f"Failed to save user data: {e}")
 
     # Hash and store integrity value
@@ -207,7 +208,7 @@ def save_users(users_dict) -> None:
             hasher_file.write(hasher_value.encode('utf-8'))
         logging.info(f"User file hashed successfully {hasher_value}")
     except Exception as e:
-        print("Error saving user data. Please try again.")
+        print(colorama.Fore.RED + "FATAL: Error saving user data. Please try again.")
         logging.error(f"Failed to save user data or hash: {e}")
 
 # -------------------- User Actions --------------------
@@ -339,7 +340,7 @@ def hash_admin_pin(password):
         logging.info("Admin account successfully created")
         return True
     except Exception as e:
-        print("New PIN registration unsuccessful")
+        print(colorama.Fore.RED + "FATAL: New PIN registration unsuccessful")
         logging.error(f"Failed to change admin PIN: {e}")
         return False
 
@@ -407,7 +408,7 @@ def login():
             stored_hash = stored_hash.encode()
         except Exception as e:
             logging.error(f"Failed to encode stored hash for '{username}': {e}")
-            print("Unexpected error occurred. Please contact support.")
+            print(colorama.Fore.RED + "FATAL: Unexpected error occurred. Please contact support.")
             return False
 
     attempt: int = 0
@@ -739,7 +740,7 @@ def calc(username) -> None:
             if again.lower().strip() != 'y':
                 break
         except Exception as e:
-            print("An error occurred. Please try again.")
+            print(colorama.Fore.RED + "FATAL: An error occurred. Please try again.")
             logging.error(f"Calculation failed: {e}")
             return
 
@@ -887,7 +888,7 @@ def launch():
         exe.join()
     except Exception:
         logging.exception("Unexpected crash in main execution")
-        print("\nAn unexpected error occurred. Please check the log file for details.\n")
+        print(colorama.Fore.RED + "\nAn unexpected error occurred. Please check the log file for details.\n")
         sys.exit(1)
     except KeyboardInterrupt:
         print("\nGoodbye!")
