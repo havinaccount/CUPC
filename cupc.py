@@ -37,7 +37,9 @@
 # -------------------- Library --------------------
 
 from functools import lru_cache # Using lru_cache to call 'normalize_username()' faster
-import getpass # Using getpass to hide input
+import getpass
+from locale import normalize
+from multiprocessing import Value # Using getpass to hide input
 import orjson # Using orjson for faster read and write (ujson deprecated)
 import os # Using os for user file deletion and dumping
 import bcrypt # Using bcrypt for hashing passwords
@@ -64,18 +66,21 @@ logging.basicConfig(
 )
 
 # -------------------- Variables --------------------
+def current_timestamp():
+    return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-USER_FILE = os.path.join(os.path.dirname(__file__), "users.json")
+BASE_DIR = os.path.dirname(__file__)
+USER_FILE = os.path.join(BASE_DIR, "users.json")
 MAX_ATTEMPTS = 5
 attempts = 0
 users_cache = None
 delay = lambda attempt: 2 ** attempt
 user_file_lock = threading.RLock()
-USER_HASH = os.path.join(os.path.dirname(__file__), "users.hash")
+USER_HASH = os.path.join(BASE_DIR, "users.hash")
 win_date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 # Datetime for app execution.
-fc_date = datetime.now().strftime("%Y-%m-%d %H:%M")
 exp = "Current datetime is:"
+date = current_timestamp()
 
 print(f"Using USER_FILE at : {USER_FILE}")
 print(f"Exists: {os.path.exists(USER_FILE)}")
@@ -84,12 +89,13 @@ print(f"Exists: {os.path.exists(USER_FILE)}")
 
 def recreate_user():
     try:
+        empty_list = b'{}'
         with open(USER_FILE, "wb") as file:
-            file.write(orjson.dumps({}))
-            return True
-    except orjson.JSONDecodeError as e:
+            file.write(empty_list)
+        return True
+    except Exception as e:
         print(colorama.Fore.RED + "FATAL: USER_FILE is corrupted" + colorama.Style.RESET_ALL)
-        logging.warning(f"User file corrupted, starting fresh: {e}")
+        logging.warning(f"Failed to recreate user file: {e}")
         return False
 
 @lru_cache(maxsize=128)
@@ -179,8 +185,7 @@ def save_users(users_dict) -> None:
     # Backup the existing files
     try:
         if os.path.exists(USER_FILE):
-            with user_file_lock:
-                shutil.copy(USER_FILE, f'{USER_FILE}.{win_date}.bak') # Create a backup of the USER_FILE
+            shutil.copy(USER_FILE, f'{USER_FILE}.{win_date}.bak') # Create a backup of the USER_FILE
     except Exception as e:
         logging.exception(f"Unexpected error when backing up user file: {e}")
         raise
@@ -250,9 +255,6 @@ def sign_up():
             print("Nothing Entered, Please try again.")
             continue
 
-        if password == False:
-            print("Aborting sign-up")
-            break
         
         if not password.isdigit(): # Numeric Verification # type: ignore
             print("PIN must contain only digits. Please try again.")
@@ -272,19 +274,15 @@ def sign_up():
         if confirm != password:
             print("PINs do not match, Please try again.")
             continue
-
-        success = hash_verify(username, password)
-        
-        try:    
+        if isinstance(password, str):
+            success = hash_pass(username, password)
             if success:
                 print("Account created successfully!")
             else:
                 print("Account creation failed.")
-        except (KeyboardInterrupt, EOFError):
-                print("\nInput stream closed. Exiting program.")
-                logging.error(f"EOFError: Input failed for {username}")
-                sys.exit(1)  # Clean exit
-        
+        else:
+            return False
+    
         logging.info(f"New user '{username}' registered.")
         return
 
@@ -299,66 +297,54 @@ def safe_getpass(string: str, strip: bool = True) -> str | bool | None:
         return False
 
 # -------------------- Hash handling --------------------
-    
-# Hashing sequence.    
-def hash_verify(username, password):
-    try:
-        if not isinstance(password, str):
-            raise TypeError(colorama.Fore.RED + f"FATAL: Expected password as str, got {type(password)}" + colorama.Style.RESET_ALL)
 
-        users = load_users() # Load the USER_FILE
-
-        try:
-            hashed_pw = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=12)) # Declare the hash_pw variable
-        except Exception as e:
-            logging.error(f"bcrypt.hashpw failed: {e}")
-            return False
-        users[username] = hashed_pw.decode("utf-8") # Assign the password to the user
-        save_users(users) # Dump all the info
-        return True
-    except Exception as e:
-        logging.error(f"Hashing failed: {e}")
-        return False
-
-def hash_new_pin(username, new_pin):
-    try:
-        if not isinstance(new_pin, str):
-            raise TypeError(colorama.Fore.RED + f"Expected new_pin as str, got {type(new_pin)}" + colorama.Style.RESET_ALL)
-        users = load_users()
-        hashed_pw = bcrypt.hashpw(new_pin.encode(), bcrypt.gensalt(rounds=12))
-        users[username] = hashed_pw.decode()
-        save_users(users)
-        logging.info(f"{username} Changed PIN successfully.")
-        return True
-    except Exception as e:
-        logging.error(f"Changing PIN failed: {e}")
-        return False
-    
-def hash_admin_pin(password):
+def _set_user_secret(username: str, secret: str, label: str) -> bool:
     try:
         users = load_users()
-        hashed_pw = bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12))
-        admin_normal = normalize_username("admin")
-        users[admin_normal] = hashed_pw.decode()
+        hashed = bcrypt.hashpw(secret.encode("utf-8"), bcrypt.gensalt(rounds=12))
+        users[username] = hashed.decode("utf-8")
         save_users(users)
+        logging.info(f"{username} {label} updated successfully.")
+        return True
+    except Exception as e:
+        logging.error(f"Failed to set {label} for {username}: {e}")
+        return False
+
+def hash_pass(username: str, password: str | None) -> bool:
+    if not isinstance(password, str):
+        logging.error(f"Expected password as str, got {type(password)}")
+        return False
+    return _set_user_secret(username, password, "Password")
+
+def hash_new_pin(username: str, new_pin: str) -> bool:
+    if not isinstance(new_pin, str):
+        logging.error(f"Expected new_pin as str, got {type(new_pin)}")
+        return False
+    return _set_user_secret(username, new_pin, "PIN")
+
+def hash_admin_pin(password: str) -> bool:
+    success = _set_user_secret(normalize_username("admin"), password, "admin PIN")
+    if success:
         print("Admin PIN set successfully.")
-        logging.info("Admin account successfully created")
-        return True
-    except Exception as e:
-        print(colorama.Fore.RED + "FATAL: New PIN registration unsuccessful")
-        logging.error(f"Failed to change admin PIN: {e}")
-        return False
+    else:
+        print(colorama.Fore.RED + "FATAL: New PIN registration unsuccessful" + colorama.Style.RESET_ALL)
+    return success
 
 def verify_user_file_integrity() -> bool:
     try:
-        with user_file_lock:
-            with open(USER_FILE, 'rb') as file:
-                current_hash = blake3(file.read()).hexdigest()
-            
-            with open(USER_HASH, 'r') as hasher_file:
-                stored_hash = hasher_file.read().strip()
-            
+        with user_file_lock, open(USER_FILE, "rb") as file:
+            hasher = blake3()
+            for chunk in iter(lambda: file.read(8192), b""):
+                hasher.update(chunk)
+            current_hash = hasher.hexdigest()
+
+        with open(USER_HASH, "rb") as hasher_file:
+            stored_hash = hasher_file.read().decode("utf-8").strip()
+
         return current_hash == stored_hash
+    except FileNotFoundError as e:
+        logging.warning(f"Integrity check failed, missing file: {e.filename}")
+        return False
     except Exception as e:
         logging.warning(f"Integrity check failed: {e}")
         return False
@@ -412,6 +398,7 @@ def login():
     
     dummy_hash = bcrypt.hashpw(b"dummy", bcrypt.gensalt(rounds=4)) # Making an easy dummy hash for securing brute-force attacks
     stored_hash = users.get(username, dummy_hash)
+    
     if isinstance(stored_hash, str):
         try:
             stored_hash = stored_hash.encode()
@@ -524,16 +511,14 @@ def change_pin(username):
         if username not in users: # If username got corrupt in changing PIN section, Stop the process.
             print("User not found.")
             logging.warning(f"PIN change failed: {username} not found")
-        
-        if new_pin.isdigit(): # If all the requirements are fulfilled, change the pin using hashing mechanic # type: ignore
-            success = hash_new_pin(username, new_pin)
-            if success:
-                return True
-            else:
-                return False
-        else:
+        if not isinstance(new_pin, str):
+            print("Invalid PIN Input")
+            return False 
+        if not new_pin.isdigit(): # If all the requirements are fulfilled, change the pin using hashing mechanic # type: ignore
             print("Password must contain only digits.")
-    
+            return False
+        
+        return hash_new_pin(username, new_pin)
 # -------------------- Admin Abilities --------------------
     
 # Admin Panel
@@ -559,22 +544,26 @@ def admin_panel(username: str = "admin"):
         # Depending on the choice, Execute the following functions.
         match choice:
             case "1":
-                if os.path.exists(USER_FILE): # User file deletion mechanic
-                    os.remove(USER_FILE)
-                    with user_file_lock:
-                        if recreate_user():
-                            print("'users.json' has been reset.")
-                            users_cache = {}
-                        else:
-                            print(colorama.Fore.RED + "FATAL: User file reset failed. Exiting program." + colorama.Style.RESET_ALL)
-                            logging.error("User file reset failed.")
-                            sys.exit(1)
-                    logging.info(f"Admin reset user file at {fc_date}")
-                    continue
-                else:
+                if not os.path.exists(USER_FILE):
                     logging.warning("Admin tried to reset user file, but it was not found.")
                     print(colorama.Fore.YELLOW + "Warning: User file not found." + colorama.Style.RESET_ALL)
-                    continue
+                    continue    
+                
+                try:
+                    os.remove(USER_FILE)
+                    with user_file_lock:
+                        success = recreate_user()
+                    if success:
+                        print("'users.json' has been reset.")
+                        users_cache = {}
+                        logging.info(f"Admin reset user file at {current_timestamp()}")
+                    else:
+                        raise RuntimeError("User file reset failed.")
+                except Exception as e:
+                    print(colorama.Fore.RED + "FATAL: User file reset failed. Exiting program." + colorama.Style.RESET_ALL)
+                    logging.error(str(e))
+                    sys.exit(1)
+                continue
             case "4":
                 print("Goodbye!")
                 logging.info("Admin Exited Panel")
@@ -582,10 +571,9 @@ def admin_panel(username: str = "admin"):
             case "2":
                 print("\nRegistered Users:")
                 try:
-                    users = load_users()
+                    users = users_cache if users_cache else load_users()
                     if not users: print("User file isn't available."); logging.warning("User file isn't available for admin or empty."); continue
-                    for user in users.keys():
-                        print("-", user)
+                    print("\n".join(f"- {user}" for user in users))
                 except orjson.JSONDecodeError:
                     print(colorama.Fore.RED + "FATAL: User file corrupted." + colorama.Style.RESET_ALL)
                     logging.warning("User file corrupted.")
@@ -648,10 +636,17 @@ def hidden_function():
                         break
                     elif choice == 'y':
                         try:
-                            hash_admin_pin(password)
-                            print("Admin PIN overwritten successfully.")
-                            logging.info("Admin PIN overwritten.")
-                            break
+                            if not isinstance(password, str):
+                                print("Invalid admin PIN input.")
+                                logging.warning("Admin PIN setup aborted: non-string input.")
+                                return False  
+                            success = hash_admin_pin(password)
+                            if success:
+                                print("Admin PIN overwritten successfully.")
+                                logging.info("Admin PIN overwritten.")
+                                break
+                            else:
+                                logging.error("Admin PIN overwrite failed.")
                         except Exception as e:
                             logging.error(f"Admin hashing failed: {e}")
                             break
@@ -662,9 +657,17 @@ def hidden_function():
                         print("Wrong choice, Please try again later.")
             else:
                 try:
-                    hash_admin_pin(password)
-                    logging.info("Admin PIN created.")
-                    break
+                    if not isinstance(password, str):
+                        print("Invalid admin PIN input.")
+                        logging.warning("Admin PIN setup aborted: non-string input.")
+                        return False  
+                    success = hash_admin_pin(password)
+                    if success:
+                        logging.info("Admin PIN created.")
+                        break
+                    else:
+                        print("Admin PIN creation failed.")
+                        break
                 except Exception as e:
                     logging.error(f"Admin hashing failed: {e}")
                     break
@@ -691,7 +694,7 @@ def calc(username) -> None:
     logging.info(f"User {username} accessed calculator.")
     while True:
         try:
-            numbers = []
+            raw_input = []
     
             # Get numbers (they will be saved in 'numbers')
             while True:
@@ -699,26 +702,35 @@ def calc(username) -> None:
                 if user_input is None:
                     print("Nothing entered, Please try again.")
                     continue
-
-                if user_input.lower().strip() == 'done': # type: ignore
+                if user_input == False:
+                    print("Aborting Calculator")
+                    return None
+                
+                normalized = user_input.lower().strip() # type: ignore
+                
+                if normalized == 'done': # type: ignore
                     break
 
-                try:
-                    numbers.append(float(user_input))
-                except ValueError:
-                    print("Please enter a numeric value or 'done'")
-
+                raw_input.append(user_input)
+            
+            try:
+                numbers = [float(x) for x in raw_input]
+                # Use numpy array for a large chunk of numbers
+                arr = np.round(np.array(numbers), 6)
+            except ValueError:
+                print("One or multiple numbers were invalid")
+                return
+            
             # Check if any numbers entered
             if not numbers:
                 print("No numbers entered")
                 return
 
-            # Use numpy array for a large chunk of numbers
-            arr = np.array(numbers)
             print(f"Numbers entered: {arr}")
 
+            multi = np.prod(arr)
             # All types of math are combined.    
-            print(f"\nMultiplication = {np.round(np.prod(arr), 3)}")
+            print(f"\nMultiplication = {np.round(multi, 3)}")
             if len(numbers) == 2:
                 print(f"Remainder = {remainder(numbers)}")
             else:
@@ -758,7 +770,7 @@ def remainder(arr: list[float]) -> float:
     zero".
     """
     if len(arr) != 2: raise ValueError(colorama.Fore.YELLOW + "Warning: Input list must be a list of two float numbers." + colorama.Style.RESET_ALL)
-    if any(num == 0.0 for num in arr): raise ValueError(colorama.Fore.RED + "FATAL: Cannot divide by zero" + colorama.Style.RESET_ALL)
+    if arr[1] == 0: raise ValueError(colorama.Fore.RED + "FATAL: Cannot divide by zero" + colorama.Style.RESET_ALL)
     x, y = arr
     return np.remainder(x, y)
 
@@ -838,7 +850,7 @@ def main():
 
     # For faster I/O executions
     warm_up_terminal()
-    print(exp, fc_date)
+    print(exp, current_timestamp())
     
     while True:
         print('\n1. Sign-up', "\n2. Login", "\n3. Exit") # Inlining the print function for less overhead
@@ -852,11 +864,11 @@ def main():
         match choice:
             case "1":
                 print("Starting Sign-up")
-                time.sleep(1)
+                time.sleep(0.5)
                 sign_up()
             case "2":
                 print("Starting Login")
-                time.sleep(1)
+                time.sleep(0.5)
                 login()
             case "3":
                 print("Exiting")
@@ -870,17 +882,12 @@ def main():
         # Second phase testing.
         #    case "5":
         #        print("Thread object:", threading.Thread)
-        if choice not in {"1", "2", "3", "9783"}:
-            print("Invalid choice. Please try again.")
-            continue
 
 # Launch script for modularizing
 def launch():
     # noinspection PyBroadException
     try:
-        exe = threading.Thread(target=main)
-        exe.start()
-        exe.join()
+        main()
     except Exception as e:
         logging.exception(f"FATAL: Unexpected crash in main execution: {e}")
         print(colorama.Fore.RED + "\nAn unexpected error occurred. Please check the log file for details.\n" + colorama.Style.RESET_ALL)
