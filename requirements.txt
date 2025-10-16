@@ -1,5 +1,5 @@
-numpy
-orjson
-bcrypt
-getpass4
-blake3
+numpy # For fast calculations
+orjson # For fast json interaction
+bcrypt # For hashing passwords
+getpass4 # For hiding input
+blake3 # For anti-tampering users.json file
