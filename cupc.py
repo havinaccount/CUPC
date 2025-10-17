@@ -455,7 +455,7 @@ def login():
 def exiti():
     print("Goodbye!") 
     logging.info("User successfully logged out.") 
-    exit()
+    return True
 
 # User Panel
 def user_panel(username):    
@@ -488,6 +488,8 @@ def user_panel(username):
             else:
                 print("Invalid choice, Please try again.")
                 continue
+        if exiti():
+            break
 
 # Change PIN
 def change_pin(username):
