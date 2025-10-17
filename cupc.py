@@ -587,7 +587,7 @@ def admin_panel(username: str = "admin"):
 # -------------------- Hidden functions --------------------
 
 # Hidden admin setup function (PIN only)
-def hidden_function() -> bool:
+def hidden_function() -> bool | None:
     """_summary_
 
     Returns:
