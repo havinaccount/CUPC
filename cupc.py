@@ -52,7 +52,6 @@ import unicodedata # For username normalizations
 import sys # For a cleaner and more stable code exit
 import numpy as np # For fast calculations
 import colorama # For coloring Exceptions
-from numba import jit
 
 # Following explanations may change depending on bugfixes and new features
 
@@ -74,12 +73,11 @@ MAX_ATTEMPTS = 5
 attempts = 0
 users_cache = None
 delay = lambda attempt: 2 ** attempt
-user_file_lock = threading.RLock()
+USER_FILE_LOCK = threading.RLock()
 USER_HASH = os.path.join(BASE_DIR, "users.hash")
-win_date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+WIN_DATE = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 # Datetime for app execution.
-exp = "Current datetime is:"
-date = current_timestamp()
+EXP = "Current datetime is:"
 
 print(f"Using USER_FILE at : {USER_FILE}")
 print(f"Exists: {os.path.exists(USER_FILE)}")
@@ -88,9 +86,9 @@ print(f"Exists: {os.path.exists(USER_FILE)}")
 
 def recreate_user():
     try:
-        empty_list = b'{}'
+        EMPTY_LIST = b'{}'
         with open(USER_FILE, "wb") as file:
-            file.write(empty_list)
+            file.write(EMPTY_LIST)
         return True
     except Exception as e:
         print(colorama.Fore.RED + "FATAL: USER_FILE is corrupted" + colorama.Style.RESET_ALL)
@@ -115,7 +113,7 @@ def load_users():
     # Check for 'USER_FILE' existence
     if not os.path.exists(USER_FILE):
         logging.warning("User file not found, starting with empty user list.")
-        with user_file_lock:
+        with USER_FILE_LOCK:
             recreate_user() # Reset the USER_FILE
         if not recreate_user():
             print(colorama.Fore.RED + "FATAL: Reset unsuccessful" + colorama.Style.RESET_ALL)
@@ -126,7 +124,7 @@ def load_users():
     if not verify_user_file_integrity():
         logging.error(colorama.Fore.RED + "FATAL: User file integrity tampered" + colorama.Style.RESET_ALL)
         print("Warning: User file integrity is tampered. Resetting users.")
-        with user_file_lock:
+        with USER_FILE_LOCK:
             if os.path.exists(USER_FILE + '.tamp'):
                 os.remove(USER_FILE + ".tamp")
             os.rename(USER_FILE, USER_FILE + '.tamp')
@@ -137,7 +135,7 @@ def load_users():
         users_cache = {}
         return users_cache
     try:
-        with user_file_lock: # With the following thread lock, open user_file
+        with USER_FILE_LOCK: # With the following thread lock, open user_file
             with open(USER_FILE, 'rb') as file:
                 data = orjson.loads(file.read())
                 if not isinstance(data, dict):
@@ -148,7 +146,7 @@ def load_users():
         logging.error(f"User file is corrupted: {e}\n\n Starting with empty user list.")
         print(colorama.Fore.YELLOW + "Warning: User data file was corrupted, All accounts have been removed." + colorama.Style.RESET_ALL)
         try:
-            with user_file_lock:    
+            with USER_FILE_LOCK:    
                 os.rename(USER_FILE, USER_FILE + ".corrupted") # Take a backup of the corrupted user_file
             logging.info(f"Corrupted user file backed up as '{USER_FILE}.corrupted'")
         except Exception as e: # Catch the following exception
@@ -184,14 +182,14 @@ def save_users(users_dict) -> None:
     # Backup the existing files
     try:
         if os.path.exists(USER_FILE):
-            shutil.copy(USER_FILE, f'{USER_FILE}.{win_date}.bak') # Create a backup of the USER_FILE
+            shutil.copy(USER_FILE, f'{USER_FILE}.{WIN_DATE}.bak') # Create a backup of the USER_FILE
     except Exception as e:
         logging.exception(f"Unexpected error when backing up user file: {e}")
         raise
 
     # Save new user data
     try:
-        with user_file_lock:  # With the thread lock inbound
+        with USER_FILE_LOCK:  # With the thread lock inbound
             with open(USER_FILE, 'wb') as file:
                 file.write(orjson.dumps(users_dict)) # Dump the sign-up info
             logging.info("User data saved.")
@@ -254,13 +252,16 @@ def sign_up():
             print("Nothing Entered, Please try again.")
             continue
 
+        if not isinstance(password, str):
+            print("Invalid password Input.")
+            return False
         
-        if not password.isdigit(): # Numeric Verification # type: ignore
+        if not password.isdigit(): # Numeric Verification
             print("PIN must contain only digits. Please try again.")
             logging.warning("Sign-up failed: Non-digit pin detected.")
             continue
 
-        if len(password) < 4: # Password length verification # type: ignore
+        if len(password) < 4: # Password length verification
             print("Password must contain 4 digits.")
             continue
         
@@ -331,7 +332,7 @@ def hash_admin_pin(password: str) -> bool:
 
 def verify_user_file_integrity() -> bool:
     try:
-        with user_file_lock, open(USER_FILE, "rb") as file:
+        with USER_FILE_LOCK, open(USER_FILE, "rb") as file:
             hasher = blake3()
             for chunk in iter(lambda: file.read(8192), b""):
                 hasher.update(chunk)
@@ -421,16 +422,20 @@ def login():
                 time.sleep(2)
                 break
             
-            if not password.isdigit(): # Making Password only look for digits. # type: ignore
+            if not isinstance(password, str):
+                print("Invalid password Input.")
+                return False
+            
+            if not password.isdigit(): # Making Password only look for digits.
                 print("PIN must contain only digits.")
                 logging.warning("Login attempt failed: Non-digit PIN entered.")
                 continue
         
-            if len(password) < 4: # Verifying password length. # type: ignore
+            if len(password) < 4: # Verifying password length.
                 print("Password must contain 4 digits.")
                 continue
         
-            if bcrypt.checkpw(password.encode(), stored_hash): # If the encoded password that we received matches our stored hash, log in. # type: ignore
+            if bcrypt.checkpw(password.encode(), stored_hash): # If the encoded password that we received matches our stored hash, log in.
                 logging.info(f"User '{username}' logged in successfully.")
 
                 if username == "admin": # if the username is admin and password matches, launch admin panel, otherwise, launch user panel
@@ -497,11 +502,14 @@ def change_pin(username):
 
         new_pin = safe_getpass("Enter new PIN: ") # Ask the user for the following new PIN 
 
-        if len(new_pin) < 4: # PIN length verification # type: ignore
+        if not isinstance(new_pin, str):
+            return False
+        
+        if len(new_pin) < 4: # PIN length verification
             print("PIN must be 4 digits or higher.")
             continue
 
-        confirm = safe_getpass("Confirm your following PIN: ") # Password Confirmation. # type: ignore
+        confirm = safe_getpass("Confirm your following PIN: ") # Password Confirmation.
         
         if confirm != new_pin:
             print("PINs do not match, Please try again.")
@@ -513,7 +521,7 @@ def change_pin(username):
         if not isinstance(new_pin, str):
             print("Invalid PIN Input")
             return False 
-        if not new_pin.isdigit(): # If all the requirements are fulfilled, change the pin using hashing mechanic # type: ignore
+        if not new_pin.isdigit(): # If all the requirements are fulfilled, change the pin using hashing mechanic
             print("Password must contain only digits.")
             return False
         
@@ -550,7 +558,7 @@ def admin_panel(username: str = "admin"):
                 
                 try:
                     os.remove(USER_FILE)
-                    with user_file_lock:
+                    with USER_FILE_LOCK:
                         success = recreate_user()
                     if success:
                         print("'users.json' has been reset.")
@@ -600,7 +608,10 @@ def hidden_function() -> bool | None:
         while True:
             password = safe_getpass("Enter new admin PIN (Pass is hidden): ") # Get a new PIN for registering admin
 
-            if not password.isdigit(): # Verify Digits # type: ignore
+            if not isinstance(password, str):
+                return False
+            
+            if not password.isdigit(): # Verify Digits
                 print("PIN must contain only digits.")
                 logging.warning("Admin Setup failed (partially), Non-digit password entered.")
                 continue
@@ -609,7 +620,7 @@ def hidden_function() -> bool | None:
                 print("Nothing entered. Please try again.")
                 continue
 
-            if len(password) < 4: # Password length verification # type: ignore 
+            if len(password) < 4: # Password length verification 
                 print("Password must be at least 4 digits.")
                 continue
             try:
@@ -631,7 +642,9 @@ def hidden_function() -> bool | None:
                     choice = safe_input('Admin PIN already exists, Overwrite? (y/n): ', lower=True, strip=True)
 
                 # Choice checking
-                    if choice.lower().strip() == 'n': # type: ignore
+                    if not isinstance(choice, str):
+                        return False
+                    if choice.lower().strip() == 'n':
                         break
                     elif choice == 'y':
                         try:
@@ -676,7 +689,7 @@ def hidden_function() -> bool | None:
     
 # -------------------- User Abilities (pt2) --------------------
 
-def get_input(prompt: str) -> str | bool | None: # Limit the return options
+def get_input(prompt: str) -> str | bool | None: # Type hinting for get_input
     try:
         while True:
             value = input(prompt).strip()
@@ -705,9 +718,12 @@ def calc(username: str):
                     print("Aborting Calculator")
                     return None
                 
-                normalized = user_input.lower().strip() # type: ignore
+                if not isinstance(user_input, str):
+                    return False
+                else:
+                    normalized = user_input.lower().strip() 
                 
-                if normalized == 'done': # type: ignore
+                if normalized == 'done':
                     break
 
                 raw_input.append(user_input)
@@ -735,25 +751,24 @@ def calc(username: str):
             print(f"Average = {average(arr)}")
             print(f"Addition = {addition(arr)}")
             print(f"Subtraction = {subtraction(arr)}")
-            try:
-                again = safe_input("\nDo you want to recalculate again?: \n", lower=True, strip=True)
-            except (KeyboardInterrupt, EOFError):
-                print("\n\nInput stream closed. Cannot read input.\n")
-                logging.error(f"EOFError: Input failed for {username}")
-                return False  # or break, or fallback logic
-
+            
+            again = safe_input("\nDo you want to recalculate again? (y/n): \n", lower=True, strip=True)
+            
             if again is None:
                 print("Nothing entered, Please try again later.")
                 return None
 
-            if again.lower().strip() != 'y': # type: ignore
+            if not isinstance(again, str):
+                return False
+            
+            if again.lower().strip() != 'y':
                 break
         except Exception as e:
             print(colorama.Fore.RED + "FATAL: An error occurred. Please try again." + colorama.Style.RESET_ALL)
             logging.error(f"Calculation failed: {e}")
             return None
 
-def remainder(arr: list[float]) -> float:
+def remainder(arr: list[float] | np.ndarray) -> float:
     """
     This Python function calculates the remainder of two numbers safely, checking for division by zero.
     
@@ -770,8 +785,8 @@ def remainder(arr: list[float]) -> float:
     if arr[1] == 0: raise ValueError(colorama.Fore.RED + "FATAL: Cannot divide by zero" + colorama.Style.RESET_ALL)
     x, y = arr
     return np.remainder(x, y)
-@jit(nopython=True, cache=True, parallel=True)
-def average(arr: np.ndarray) -> float:
+
+def average(arr: list[float] | np.ndarray) -> float:
     """This python function calculates the average of numbers
 
     :param arr: The `arr` parameter is expected to be list of multiple float numbers using the NumPy's `mean`
@@ -779,8 +794,8 @@ def average(arr: np.ndarray) -> float:
     :return: The function `average` is returning the average of `arr` using the NumPy's `mean` function.
     """
     return float(np.round(np.mean(arr), 3))
-@jit(nopython=True, cache=True, parallel=True)
-def addition(arr: np.ndarray) -> float:
+
+def addition(arr: list[float] | np.ndarray) -> float:
     """This python function calculates the addition of numbers
 
     :param arr: The `arr` parameter is expected to be list of multiple float numbers using the NumPy's `sum`
@@ -788,8 +803,8 @@ def addition(arr: np.ndarray) -> float:
     :return: The function `addition` is returning the average of `arr` using the NumPy's `sum` function.
     """
     return float(np.round(np.sum(arr), 2))
-@jit(nopython=True, cache=True, parallel=True)
-def subtraction(arr: np.ndarray) -> float:
+
+def subtraction(arr: list[float] | np.ndarray) -> float:
     """This python function calculates the average of numbers
 
     :param arr: The `arr` parameter is expected to be list of multiple float numbers using the NumPy's `subtract.reduce()`
@@ -797,8 +812,8 @@ def subtraction(arr: np.ndarray) -> float:
     :return: The function `subtraction` is returning the average of `arr` using the NumPy's `subtract.reduce()` function.
     """
     return float(np.round(np.subtract.reduce(arr), 2))
-@jit(nopython=True, cache=True, parallel=True)
-def multiplication(arr: np.ndarray) -> float:
+
+def multiplication(arr: list[float] | np.ndarray) -> float:
     """This python function calculates the average of numbers
 
     :param arr: The `arr` parameter is expected to be list of multiple float numbers using the NumPy's `prod`
@@ -858,7 +873,8 @@ def guess_game(username) -> None: # Can be changed for new return arguments
                 break       
     except Exception as e:
         logging.error(f"Game failed: {e}")
-
+    except KeyboardInterrupt:
+        return None
 # Log testing, Hanging test.
 # def crash():
 #    raise Exception
@@ -882,13 +898,15 @@ def main():
 
     # For faster I/O executions
     warm_up_terminal()
-    print(exp, current_timestamp())
+    print(EXP, current_timestamp())
+
     actions = {
         "1": lambda: (print("Starting sign-up"), time.sleep(0.5), sign_up()),
         "2": lambda: (print("Starting Login"), time.sleep(0.5), login()),
         "3": lambda: (print("Exiting"), exit()),
         "9783": lambda: hidden_function()
     }
+
     while True:
         print('\n1. Sign-up', "\n2. Login", "\n3. Exit") # Inlining the print function for less overhead
 
@@ -898,11 +916,15 @@ def main():
             print("No input received")
             return
             # Depending on the choice, run the following functions
-        action = actions.get(choice)
-        if action:
-            action()
+        if not isinstance(choice, str):
+            print("You have to enter a string.")
+            return False
         else:
-            print("Invalid choice, Please try again.")
+            action = actions.get(choice)
+            if action:
+                action()
+            else:
+                print("Invalid choice, Please try again.")
             continue
         # Second phase testing.
         #    case "5":
