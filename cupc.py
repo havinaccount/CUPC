@@ -69,13 +69,13 @@ def current_timestamp():
 
 BASE_DIR = os.path.dirname(__file__)
 USER_FILE = os.path.join(BASE_DIR, "users.json")
+USER_HASH = os.path.join(BASE_DIR, "users.hash")
 MAX_ATTEMPTS = 5
 attempts = 0
 users_cache = None
 delay = lambda attempt: 2 ** attempt
 USER_FILE_LOCK = threading.RLock()
-USER_HASH = os.path.join(BASE_DIR, "users.hash")
-WIN_DATE = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+win_date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 # Datetime for app execution.
 EXP = "Current datetime is:"
 
@@ -182,7 +182,7 @@ def save_users(users_dict) -> None:
     # Backup the existing files
     try:
         if os.path.exists(USER_FILE):
-            shutil.copy(USER_FILE, f'{USER_FILE}.{WIN_DATE}.bak') # Create a backup of the USER_FILE
+            shutil.copy(USER_FILE, f'{USER_FILE}.{win_date}.bak') # Create a backup of the USER_FILE
     except Exception as e:
         logging.exception(f"Unexpected error when backing up user file: {e}")
         raise
@@ -452,10 +452,21 @@ def login():
     return False
 
 # -------------------- User Abilities --------------------
+def exiti():
+    print("Goodbye!") 
+    logging.info("User successfully logged out.") 
+    exit()
 
 # User Panel
 def user_panel(username):    
     print("Login successful!")
+    
+    actions = {
+            "1": lambda: calc(username),
+            "2": lambda: print("PIN changed successfully!") if change_pin(username) else print("PIN change failed."),
+            "3": lambda: guess_game(username),
+            "4": exiti
+                }
     
     while True: 
         print("\n1. Calculation", "\n2. Change PIN", "\n3. Guess the Number", "\n4. Exit")
@@ -465,27 +476,17 @@ def user_panel(username):
         if not choice:
             print("Nothing entered, Please try again.")
             continue
-
+        
         # Depending on the choice, launch the following functions
-        match choice:
-            case "1":
-                calc(username)
-            case "2":
-                success = change_pin(username)
-                if success:
-                    print("PIN changed successfully!")
-                else:
-                    print("PIN change failed.")
-            case "3":
-                guess_game(username)
-            case "4":
-                print("Goodbye!")
-                logging.info("User successfully logged out.")
-                break
-            # If wrong choice is given, ask again.
-            case _:
-                print("\nWrong choice, Please try again.")
-                logging.warning("Wrong Choice Entered, repeating choice process.")
+        if not isinstance(choice, str):
+            print("You have to enter a string.")
+            return False
+        else:
+            action = actions.get(choice)
+            if action:
+                action()
+            else:
+                print("Invalid choice, Please try again.")
                 continue
 
 # Change PIN
