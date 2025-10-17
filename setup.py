@@ -1,12 +1,13 @@
 from setuptools import setup
 from setuptools.command.install import install
 import os
+import multiprocessing
 '''
 Setup file for CUPC, Please change the modules as CUPC update
 '''
 class BuildWithNuitka(install):
     def run(self):
-        os.system("nuitka --lto=yes --onefile --follow-imports --output-dir=dist --remove-output cupc.py")
+        os.system(f"nuitka --lto=yes --onefile --follow-imports --output-dir=dist --remove-output --jobs={multiprocessing.cpu_count} cupc.py")
         install.run(self)
 
 setup(
