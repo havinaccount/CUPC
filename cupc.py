@@ -904,7 +904,7 @@ def main():
     actions = {
         "1": lambda: (print("Starting sign-up"), time.sleep(0.5), sign_up()),
         "2": lambda: (print("Starting Login"), time.sleep(0.5), login()),
-        "3": lambda: (print("Exiting"), exit()),
+        "3": lambda: (print("Exiting"), sys.exit()),
         "9783": lambda: hidden_function()
     }
 
