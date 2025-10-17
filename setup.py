@@ -1,7 +1,14 @@
 from setuptools import setup
+from setuptools.command.install import install
+import os
 '''
 Setup file for CUPC, Please change the modules as CUPC update
 '''
+class BuildWithNuitka(install):
+    def run(self):
+        os.system("nuitka --lto=yes --onefile --follow-imports --output-dir=dist --remove-output cupc.py")
+        install.run(self)
+
 setup(
     name='CUPC',
     version='1.0.3',
@@ -24,4 +31,5 @@ setup(
         ]
     },
     python_requires='>=3.10',
+    cmdclass={'install': BuildWithNuitka}
 )
