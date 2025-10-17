@@ -376,7 +376,7 @@ def login():
         print("No users registered. Please sign up first.")
         return False
 
-    username: str = normalize_username(safe_input("Username: ", strip=True))
+    username: str | None = normalize_username(safe_input("Username: ", strip=True))
     
     if username is None:
         print("Nothing entered, Please try again later.")
