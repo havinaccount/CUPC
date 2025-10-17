@@ -37,9 +37,7 @@
 # -------------------- Library --------------------
 
 from functools import lru_cache # Using lru_cache to call 'normalize_username()' faster
-import getpass
-from locale import normalize
-from multiprocessing import Value # Using getpass to hide input
+import getpass # Using getpass to hide input
 import orjson # Using orjson for faster read and write (ujson deprecated)
 import os # Using os for user file deletion and dumping
 import bcrypt # Using bcrypt for hashing passwords
@@ -54,6 +52,7 @@ import unicodedata # For username normalizations
 import sys # For a cleaner and more stable code exit
 import numpy as np # For fast calculations
 import colorama # For coloring Exceptions
+from numba import jit
 
 # Following explanations may change depending on bugfixes and new features
 
@@ -221,7 +220,7 @@ def sign_up():
     
     while True:
 
-        username: str = normalize_username(safe_input("Choose a username: ", strip=True)) # Make an str username const
+        username: str = normalize_username(safe_input("Choose a username: ", strip=True)) # Make a str username const
         
         logging.info(f"Sign-up attempt for username: {username}")
 
@@ -284,7 +283,7 @@ def sign_up():
             return False
     
         logging.info(f"New user '{username}' registered.")
-        return
+        return True
 
 def safe_getpass(string: str, strip: bool = True) -> str | bool | None:
     try:
@@ -350,7 +349,7 @@ def verify_user_file_integrity() -> bool:
         return False
 
 # New type of input with error handling (Please don't change this unless improving it)
-def safe_input(prompt: str, strip: bool = True, lower: bool = False, upper: bool = False) -> str | bool | None:
+def safe_input(prompt: str = "", strip: bool = True, lower: bool = False, upper: bool = False) -> str | bool | None:
     try:
         value = input(prompt)
         if strip:
@@ -588,7 +587,7 @@ def admin_panel(username: str = "admin"):
 # -------------------- Hidden functions --------------------
 
 # Hidden admin setup function (PIN only)
-def hidden_function():
+def hidden_function() -> bool:
     """_summary_
 
     Returns:
@@ -688,7 +687,7 @@ def get_input(prompt: str) -> str | bool | None: # Limit the return options
         return False # or break, or fallback logic
     
 # Calculator
-def calc(username) -> None:
+def calc(username: str):
     """A Simple, interactive calculator"""
     print(f"Welcome {username}")
     logging.info(f"User {username} accessed calculator.")
@@ -716,45 +715,43 @@ def calc(username) -> None:
             try:
                 numbers = [float(x) for x in raw_input]
                 # Use numpy array for a large chunk of numbers
-                arr = np.round(np.array(numbers), 6)
+                arr = np.round(np.array(numbers, dtype=np.float64), 6)
             except ValueError:
                 print("One or multiple numbers were invalid")
-                return
+                return False
             
             # Check if any numbers entered
             if not numbers:
                 print("No numbers entered")
-                return
+                return None
 
             print(f"Numbers entered: {arr}")
-
-            multi = np.prod(arr)
             # All types of math are combined.    
-            print(f"\nMultiplication = {np.round(multi, 3)}")
+            print(f"\nMultiplication = {multiplication(arr)}")
             if len(numbers) == 2:
                 print(f"Remainder = {remainder(numbers)}")
             else:
                 print("For remainder, You need enter two numbers only.")
-            print(f"Average = {np.round(np.mean(arr), 3)}")
-            print(f"Addition = {np.round(np.sum(arr), 2)}")
-            print(f"Subtraction = {np.round(np.subtract.reduce(arr), 2)}")
+            print(f"Average = {average(arr)}")
+            print(f"Addition = {addition(arr)}")
+            print(f"Subtraction = {subtraction(arr)}")
             try:
                 again = safe_input("\nDo you want to recalculate again?: \n", lower=True, strip=True)
             except (KeyboardInterrupt, EOFError):
                 print("\n\nInput stream closed. Cannot read input.\n")
                 logging.error(f"EOFError: Input failed for {username}")
-                return  # or break, or fallback logic
+                return False  # or break, or fallback logic
 
             if again is None:
                 print("Nothing entered, Please try again later.")
-                return
+                return None
 
             if again.lower().strip() != 'y': # type: ignore
                 break
         except Exception as e:
             print(colorama.Fore.RED + "FATAL: An error occurred. Please try again." + colorama.Style.RESET_ALL)
             logging.error(f"Calculation failed: {e}")
-            return
+            return None
 
 def remainder(arr: list[float]) -> float:
     """
@@ -773,7 +770,42 @@ def remainder(arr: list[float]) -> float:
     if arr[1] == 0: raise ValueError(colorama.Fore.RED + "FATAL: Cannot divide by zero" + colorama.Style.RESET_ALL)
     x, y = arr
     return np.remainder(x, y)
+@jit(nopython=True, cache=True, parallel=True)
+def average(arr: np.ndarray) -> float:
+    """This python function calculates the average of numbers
 
+    :param arr: The `arr` parameter is expected to be list of multiple float numbers using the NumPy's `mean`
+    :type arr: np.ndarray:
+    :return: The function `average` is returning the average of `arr` using the NumPy's `mean` function.
+    """
+    return float(np.round(np.mean(arr), 3))
+@jit(nopython=True, cache=True, parallel=True)
+def addition(arr: np.ndarray) -> float:
+    """This python function calculates the addition of numbers
+
+    :param arr: The `arr` parameter is expected to be list of multiple float numbers using the NumPy's `sum`
+    :type arr: np.ndarray:
+    :return: The function `addition` is returning the average of `arr` using the NumPy's `sum` function.
+    """
+    return float(np.round(np.sum(arr), 2))
+@jit(nopython=True, cache=True, parallel=True)
+def subtraction(arr: np.ndarray) -> float:
+    """This python function calculates the average of numbers
+
+    :param arr: The `arr` parameter is expected to be list of multiple float numbers using the NumPy's `subtract.reduce()`
+    :type arr: np.ndarray:
+    :return: The function `subtraction` is returning the average of `arr` using the NumPy's `subtract.reduce()` function.
+    """
+    return float(np.round(np.subtract.reduce(arr), 2))
+@jit(nopython=True, cache=True, parallel=True)
+def multiplication(arr: np.ndarray) -> float:
+    """This python function calculates the average of numbers
+
+    :param arr: The `arr` parameter is expected to be list of multiple float numbers using the NumPy's `prod`
+    :type arr: np.ndarray:
+    :return: The function `multiplication` is returning the average of `arr` using the NumPy's `prod` function.
+    """
+    return float(np.round(np.prod(arr), 3))
 # -------------------- User Abilities (pt3) --------------------
 
 def guess_game(username) -> None: # Can be changed for new return arguments
@@ -851,7 +883,12 @@ def main():
     # For faster I/O executions
     warm_up_terminal()
     print(exp, current_timestamp())
-    
+    actions = {
+        "1": lambda: (print("Starting sign-up"), time.sleep(0.5), sign_up()),
+        "2": lambda: (print("Starting Login"), time.sleep(0.5), login()),
+        "3": lambda: (print("Exiting"), exit()),
+        "9783": lambda: hidden_function()
+    }
     while True:
         print('\n1. Sign-up', "\n2. Login", "\n3. Exit") # Inlining the print function for less overhead
 
@@ -861,24 +898,12 @@ def main():
             print("No input received")
             return
             # Depending on the choice, run the following functions
-        match choice:
-            case "1":
-                print("Starting Sign-up")
-                time.sleep(0.5)
-                sign_up()
-            case "2":
-                print("Starting Login")
-                time.sleep(0.5)
-                login()
-            case "3":
-                print("Exiting")
-                logging.info("Program ended")
-                return
-            case "9783":
-                hidden_function()
-            case _:
-                print("Invalid choice, Please try again.")
-                continue
+        action = actions.get(choice)
+        if action:
+            action()
+        else:
+            print("Invalid choice, Please try again.")
+            continue
         # Second phase testing.
         #    case "5":
         #        print("Thread object:", threading.Thread)
