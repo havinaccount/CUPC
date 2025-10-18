@@ -39,7 +39,6 @@
 from functools import lru_cache # Using lru_cache to call 'normalize_username()' faster
 import getpass # Using getpass to hide input
 import orjson # Using orjson for faster read and write (ujson deprecated)
-import os # Using os for user file deletion and dumping
 import bcrypt # Using bcrypt for hashing passwords
 from datetime import datetime # Using datetime for the main program
 import logging # Using logging to capture every event
@@ -68,29 +67,32 @@ logging.basicConfig(
 # -------------------- Variables --------------------
 def current_timestamp():
     return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-
-BASE_DIR: Final = Path(__file__).parent
+# File paths
+BASE_DIR: Final = Path.cwd()
 USER_FILE: Final = BASE_DIR / "users.json"
 USER_HASH: Final = BASE_DIR / "users.hash"
+
+win_date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+EXP: Final = "Current datetime is:"
 MAX_ATTEMPTS: Final = 5
 attempts = 0
-users_cache = None
 delay = lambda attempt: 2 ** attempt
+users_cache = None
 USER_FILE_LOCK: Final = threading.RLock()
-win_date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
 # Datetime for app execution.
-EXP: Final = "Current datetime is:"
+
 
 print(f"Using USER_FILE at : {USER_FILE}")
-print(f"Exists: {os.path.exists(USER_FILE)}")
+print(f"Exists: {USER_FILE.exists()}")
 
 # -------------------- Still in development --------------------
 
 def recreate_user():
     try:
-        EMPTY_LIST = b'{}'
+        empty_list: bytes = b'{}'
         with open(USER_FILE, "wb") as file:
-            file.write(EMPTY_LIST)
+            file.write(empty_list)
         return True
     except Exception as e:
         print(colorama.Fore.RED + "FATAL: USER_FILE is corrupted" + colorama.Style.RESET_ALL)
@@ -111,46 +113,55 @@ def load_users():
 
     if users_cache is not None:
         return users_cache # Return cached users if already loaded
-    
-    # Check for 'USER_FILE' existence
-    if not os.path.exists(USER_FILE):
-        logging.warning("User file not found, starting with empty user list.")
-        with USER_FILE_LOCK:
-            recreate_user() # Reset the USER_FILE
-        if not recreate_user():
-            print(colorama.Fore.RED + "FATAL: Reset unsuccessful" + colorama.Style.RESET_ALL)
-            sys.exit(1)
-        users_cache = {} # Give user_cache a storage
-        return users_cache # Flush users_cache
+
+    file_exists: bool = USER_FILE.exists()
+    tamp_path = USER_FILE.with_name(USER_FILE.name + ".tamp")
 
     if not verify_user_file_integrity():
         logging.error(colorama.Fore.RED + "FATAL: User file integrity tampered" + colorama.Style.RESET_ALL)
         print("Warning: User file integrity is tampered. Resetting users.")
         with USER_FILE_LOCK:
-            if os.path.exists(USER_FILE / '.tamp'):
-                os.remove(USER_FILE / ".tamp")
-            os.rename(USER_FILE, USER_FILE / '.tamp')
-            recreate_user()
-            if not recreate_user():
+            if tamp_path.exists():
+                tamp_path.unlink()
+            if file_exists:
+                USER_FILE.rename(tamp_path)
+            else:
+                logging.error(f"Cannot rename missing file: {USER_FILE}")
+            success = recreate_user()
+            if not success:
                 print(colorama.Fore.RED + "FATAL: Reset unsuccessful." + colorama.Style.RESET_ALL)
                 sys.exit(1)
         users_cache = {}
         return users_cache
+
+    # Check for 'USER_FILE' existence
+    if not file_exists:
+        logging.warning("User file not found, starting with empty user list.")
+        with USER_FILE_LOCK:
+            success = recreate_user() # Reset the USER_FILE
+        if not success:
+            print(colorama.Fore.RED + "FATAL: Reset unsuccessful" + colorama.Style.RESET_ALL)
+            sys.exit(1)
+        users_cache = {} # Give user_cache a storage
+        return users_cache # Flush users_cache
+
     try:
         with USER_FILE_LOCK: # With the following thread lock, open user_file
             with open(USER_FILE, 'rb') as file:
-                data = orjson.loads(file.read())
-                if not isinstance(data, dict):
-                    raise ValueError(colorama.Fore.RED + f"FATAL: User file corrupted: expected dict, got {type(data)}" + colorama.Style.RESET_ALL)
-                users_cache = data
+                raw_data = file.read()
+                temp_cache = orjson.loads(raw_data)
+                if not isinstance(temp_cache, dict):
+                    raise ValueError(colorama.Fore.RED + f"FATAL: User file corrupted: expected dict, got {type(temp_cache)}" + colorama.Style.RESET_ALL)
+                users_cache = temp_cache
                 logging.info("User file loaded successfully.")
     except orjson.JSONDecodeError as e: # Catch the USER_FILE Corruption
         logging.error(f"User file is corrupted: {e}\n\n Starting with empty user list.")
         print(colorama.Fore.YELLOW + "Warning: User data file was corrupted, All accounts have been removed." + colorama.Style.RESET_ALL)
         try:
             with USER_FILE_LOCK:    
-                os.rename(USER_FILE, USER_FILE / ".corrupted") # Take a backup of the corrupted user_file
-            logging.info(f"Corrupted user file backed up as '{USER_FILE}.corrupted'")
+                if file_exists:
+                    USER_FILE.rename(USER_FILE.with_name(USER_FILE.name + ".corrupted")) # Take a backup of the corrupted user_file
+                    logging.info(f"Corrupted user file backed up as '{USER_FILE}.corrupted'")
         except Exception as e: # Catch the following exception
             logging.error(f"Failed to backup corrupted user file: {e}")
         finally:
@@ -177,40 +188,41 @@ def validate_users_dict(users_dict) -> bool:
         logging.error(f"Validation failed: {e}")
         return False
 # Save users to file
-def save_users(users_dict) -> None:
+def save_users(users_dict) -> None | bool:
     if not validate_users_dict(users_dict):
         raise ValueError("Invalid user data format")
 
     # Backup the existing files
     try:
-        if os.path.exists(USER_FILE):
-            shutil.copy(USER_FILE, f'{USER_FILE}.{win_date}.bak') # Create a backup of the USER_FILE
+        if USER_FILE.exists():
+            backup_path: str | Path = USER_FILE.with_name(f'{USER_FILE.stem}.{win_date}.bak')
+            shutil.copy(USER_FILE, backup_path) # Create a backup of the USER_FILE
+            logging.info(f"Successfully backed up {USER_FILE} at {win_date}")
     except Exception as e:
         logging.exception(f"Unexpected error when backing up user file: {e}")
         raise
 
     # Save new user data
     try:
+        serialized_data = orjson.dumps(users_dict)
         with USER_FILE_LOCK:  # With the thread lock inbound
             with open(USER_FILE, 'wb') as file:
-                file.write(orjson.dumps(users_dict)) # Dump the sign-up info
+                file.write(serialized_data) # Dump the sign-up info
             logging.info("User data saved.")
     except Exception as e: # Catch the exception
         print(colorama.Fore.RED + "FATAL: Error saving user data. Please try again." + colorama.Style.RESET_ALL)
         logging.error(f"Failed to save user data: {e}")
-
+        return False
     # Hash and store integrity value
     try:
-        with open (USER_FILE, 'rb') as file:
-            data = file.read()
-        hasher_value = blake3(data).hexdigest()
+        hasher_value = blake3(serialized_data).hexdigest()
         with open(USER_HASH, 'wb') as hasher_file:
             hasher_file.write(hasher_value.encode('utf-8'))
         logging.info(f"User file hashed successfully {hasher_value}")
     except Exception as e:
         print(colorama.Fore.RED + "FATAL: Error saving user data. Please try again." + colorama.Style.RESET_ALL)
         logging.error(f"Failed to save user data or hash: {e}")
-
+        return False
 # -------------------- User Actions --------------------
 
 # Sign up function with PIN validation and hashing
@@ -334,14 +346,16 @@ def hash_admin_pin(password: str) -> bool:
 
 def verify_user_file_integrity() -> bool:
     try:
+        # Compute the hash of the USER_FILE
         with USER_FILE_LOCK, open(USER_FILE, "rb") as file:
             hasher = blake3()
             for chunk in iter(lambda: file.read(8192), b""):
                 hasher.update(chunk)
             current_hash = hasher.hexdigest()
 
-        with open(USER_HASH, "rb") as hasher_file:
-            stored_hash = hasher_file.read().decode("utf-8").strip()
+        # Read stored hash from USER_HASH
+        with open(USER_HASH, "r", encoding="utf-8") as hasher_file:
+            stored_hash = hasher_file.read().strip()
 
         return current_hash == stored_hash
     except FileNotFoundError as e:
@@ -413,49 +427,49 @@ def login():
     
     while attempt < MAX_ATTEMPTS:
             
-            password = safe_getpass("PIN (Pass is hidden): ") # Getting password
+        password = safe_getpass("PIN (Pass is hidden): ") # Getting password
 
-            if password is None:
-                print("Login cancelled.")
-                return False
+        if password is None:
+            print("Login cancelled.")
+            return False
 
-            if password == False:
-                print("Aborting Password.")
-                time.sleep(2)
-                break
-            
-            if not isinstance(password, str):
-                print("Invalid password Input.")
-                return False
-            
-            if not password.isdigit(): # Making Password only look for digits.
-                print("PIN must contain only digits.")
-                logging.warning("Login attempt failed: Non-digit PIN entered.")
-                continue
-        
-            if len(password) < 4: # Verifying password length.
-                print("Password must contain 4 digits.")
-                continue
-        
-            if bcrypt.checkpw(password.encode(), stored_hash): # If the encoded password that we received matches our stored hash, log in.
-                logging.info(f"User '{username}' logged in successfully.")
+        if password == False:
+            print("Aborting Password.")
+            time.sleep(2)
+            break
 
-                if username == "admin": # if the username is admin and password matches, launch admin panel, otherwise, launch user panel
-                    logging.info("Admin panel executed.")
-                    admin_panel()
-                    return True
-                user_panel(username)
+        if not isinstance(password, str):
+            print("Invalid password Input.")
+            return False
+
+        if not password.isdigit(): # Making Password only look for digits.
+            print("PIN must contain only digits.")
+            logging.warning("Login attempt failed: Non-digit PIN entered.")
+            continue
+
+        if len(password) < 4: # Verifying password length.
+            print("Password must contain 4 digits.")
+            continue
+
+        if bcrypt.checkpw(password.encode(), stored_hash): # If the encoded password that we received matches our stored hash, log in.
+            logging.info(f"User '{username}' logged in successfully.")
+
+            if username == "admin": # if the username is admin and password matches, launch admin panel, otherwise, launch user panel
+                logging.info("Admin panel executed.")
+                admin_panel()
                 return True
-            else:
-                print("\nPassword is incorrect, Please try again\n")
-                attempt += 1
-                time.sleep(delay(attempt))
+            user_panel(username)
+            return True
+        else:
+            print("\nPassword is incorrect, Please try again\n")
+            attempt += 1
+            time.sleep(delay(attempt))
                 
     print("Maximum login attempts reached.")
     return False
 
 # -------------------- User Abilities --------------------
-def exiti():
+def exits():
     logging.info("User successfully logged out.") 
     return True
 
@@ -467,7 +481,7 @@ def user_panel(username):
             "1": lambda: calc(username),
             "2": lambda: print("PIN changed successfully!") if change_pin(username) else print("PIN change failed."),
             "3": lambda: guess_game(username),
-            "4": exiti
+            "4": exits
                 }
     
     while True: 
@@ -490,7 +504,7 @@ def user_panel(username):
             else:
                 print("Invalid choice, Please try again.")
                 continue
-        if exiti():
+        if exits():
             break
 
 # Change PIN
@@ -556,13 +570,13 @@ def admin_panel(username: str = "admin"):
         # Depending on the choice, Execute the following functions.
         match choice:
             case "1":
-                if not os.path.exists(USER_FILE):
+                if not USER_FILE.exists():
                     logging.warning("Admin tried to reset user file, but it was not found.")
                     print(colorama.Fore.YELLOW + "Warning: User file not found." + colorama.Style.RESET_ALL)
                     continue    
                 
                 try:
-                    os.remove(USER_FILE)
+                    USER_FILE.unlink()
                     with USER_FILE_LOCK:
                         success = recreate_user()
                     if success:
@@ -575,7 +589,6 @@ def admin_panel(username: str = "admin"):
                     print(colorama.Fore.RED + "FATAL: User file reset failed. Exiting program." + colorama.Style.RESET_ALL)
                     logging.error(str(e))
                     sys.exit(1)
-                continue
             case "4":
                 print("Goodbye!")
                 logging.info("Admin Exited Panel")
@@ -584,8 +597,8 @@ def admin_panel(username: str = "admin"):
                 print("\nRegistered Users:")
                 try:
                     users = users_cache if users_cache else load_users()
-                    if not users: print("User file isn't available."); logging.warning("User file isn't available for admin or empty."); continue
-                    print("\n".join(f"- {user}" for user in users))
+                    if not users: print("No users found."); logging.warning("User file isn't available for admin or empty."); continue
+                    print("\n".join(f"   - {user}" for user in users))
                 except orjson.JSONDecodeError:
                     print(colorama.Fore.RED + "FATAL: User file corrupted." + colorama.Style.RESET_ALL)
                     logging.warning("User file corrupted.")
@@ -846,7 +859,11 @@ def guess_game(username) -> None: # Can be changed for new return arguments
         while True:   
 
             guess = safe_input("Guess a number (1-20): ", strip=True)
-            
+
+            if guess is False:
+                print("Aborting game.")
+                break
+
             if guess is None:
                 print("Your guess could not be empty, Pick a number.")
                 continue
@@ -887,7 +904,7 @@ def guess_game(username) -> None: # Can be changed for new return arguments
 def warm_up_terminal():
     # noinspection PyBroadException
     try:
-        getpass.getpass(prompt="Press enter to continue...\n")
+        getpass.getpass(prompt=colorama.Fore.YELLOW + "\nPress enter to continue...\n" + colorama.Style.RESET_ALL)
     except Exception:
         pass
 
@@ -919,18 +936,19 @@ def main():
 
         if choice is None:
             print("No input received")
-            return
+            return None
             # Depending on the choice, run the following functions
         if not isinstance(choice, str):
             print("You have to enter a string.")
             return False
+
+        action = actions.get(choice)
+        if action:
+            action()
         else:
-            action = actions.get(choice)
-            if action:
-                action()
-            else:
-                print("Invalid choice, Please try again.")
-            continue
+            print("Invalid choice, Please try again.")
+        continue
+
         # Second phase testing.
         #    case "5":
         #        print("Thread object:", threading.Thread)
