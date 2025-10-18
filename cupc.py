@@ -236,16 +236,16 @@ def sign_up():
         
         logging.info(f"Sign-up attempt for username: {username}")
 
-        if username is None:
+        if username is None: # Fix for using safe_input
             print("Nothing entered, Pleases try again.")
             continue
 
-        if username in users:
+        if username in users: # Check if the username already exists
             print("Username already exists. Please choose a different one.")
             logging.warning(f"Sign-up failed: Username '{username}' already exists.")
             continue
         
-        if not username:
+        if not username: # Check if anything entered
             print("Username cannot be empty or spaces, Please try again.")
             logging.warning("Sign-up failed: Empty username entered.")
             continue  
@@ -260,13 +260,13 @@ def sign_up():
             logging.warning("A User tried to sign-up as admin.")
             continue
 
-        password = safe_getpass("Choose a PIN (numbers only, Pass is hidden): ")
+        password: str = safe_getpass("Choose a PIN (numbers only, Pass is hidden): ")
 
-        if password is None:
+        if password is None: # Fix for safe_getpass
             print("Nothing Entered, Please try again.")
             continue
 
-        if not isinstance(password, str):
+        if not isinstance(password, str): # Check if the following value is str
             print("Invalid password Input.")
             return False
         
@@ -281,14 +281,14 @@ def sign_up():
         
         confirm = safe_getpass("Confirm your PIN: ")
 
-        if confirm is None:
+        if confirm is None: # Fix for safe_getpass
             print("Nothing Entered, Please try again.")
             continue
 
-        if confirm != password:
+        if confirm != password: # Check if password matches
             print("PINs do not match, Please try again.")
             continue
-        if isinstance(password, str):
+        if isinstance(password, str): # Second check for checking the data type of password
             success = hash_pass(username, password)
             if success:
                 print("Account created successfully!")
@@ -297,14 +297,14 @@ def sign_up():
         else:
             return False
     
-        logging.info(f"New user '{username}' registered.")
+        logging.info(f"New user '{username}' registered.") # Log the info
         return True
 
-def safe_getpass(string: str, strip: bool = True) -> str | bool | None:
+def safe_getpass(string: str, strip: bool = True) -> str | bool | None: # Type hints are for contributions
     try:
         value = getpass.getpass(string)
         if not value: return None
-        return value.strip() if strip else value
+        return value.strip() if strip else value # Check if strip is True (bool)
     except Exception as e:
         print("Exiting or error.")
         logging.error(f"Password interception: {e}")
@@ -312,7 +312,11 @@ def safe_getpass(string: str, strip: bool = True) -> str | bool | None:
 
 # -------------------- Hash handling --------------------
 
-def _set_user_secret(username: str, secret: str, label: str) -> bool:
+# Use this if you want to instantly raise an error.
+# if not isinstance(X, STR):
+#     raise VALUEERROR("Your message")
+
+def _set_user_secret(username: str, secret: str, label: str) -> bool: # Use this functions for different sets of requests
     try:
         users = load_users()
         hashed = bcrypt.hashpw(secret.encode("utf-8"), bcrypt.gensalt(rounds=12))
@@ -328,7 +332,7 @@ def hash_pass(username: str, password: str | None) -> bool:
     if not isinstance(password, str):
         logging.error(f"Expected password as str, got {type(password)}")
         return False
-    return _set_user_secret(username, password, "Password")
+    return _set_user_secret(username, password, "Password") # This is the first usage of '_set_user_secret', Using the same capability may add overhead, That's why we use same function
 
 def hash_new_pin(username: str, new_pin: str) -> bool:
     if not isinstance(new_pin, str):
@@ -344,7 +348,7 @@ def hash_admin_pin(password: str) -> bool:
         print(colorama.Fore.RED + "FATAL: New PIN registration unsuccessful" + colorama.Style.RESET_ALL)
     return success
 
-def verify_user_file_integrity() -> bool:
+def verify_user_file_integrity() -> bool: # Checks the integrity of files
     try:
         # Compute the hash of the USER_FILE
         with USER_FILE_LOCK, open(USER_FILE, "rb") as file:
@@ -354,8 +358,8 @@ def verify_user_file_integrity() -> bool:
             current_hash = hasher.hexdigest()
 
         # Read stored hash from USER_HASH
-        with open(USER_HASH, "r", encoding="utf-8") as hasher_file:
-            stored_hash = hasher_file.read().strip()
+        with open(USER_HASH, "r", encoding="utf-8") as hasher_file: # encoding is basically normalizing the string
+            stored_hash = hasher_file.read().strip() # Reads the file and removes trailing whitespaces
 
         return current_hash == stored_hash
     except FileNotFoundError as e:
@@ -366,7 +370,7 @@ def verify_user_file_integrity() -> bool:
         return False
 
 # New type of input with error handling (Please don't change this unless improving it)
-def safe_input(prompt: str = "", strip: bool = True, lower: bool = False, upper: bool = False) -> str | bool | None:
+def safe_input(prompt: str = "", strip: bool = True, lower: bool = False, upper: bool = False) -> str | bool | None: # New booleans are accepted
     try:
         value = input(prompt)
         if strip:
@@ -386,7 +390,7 @@ def safe_input(prompt: str = "", strip: bool = True, lower: bool = False, upper:
 # Login function with PIN validation and verification
 def login():
     print("\n=== LOGIN ===")
-    users = load_users()
+    users = load_users() # Do not wrap this up in a try/except block, 'load_users' already handles that
     
     if not users:
         print("No users registered. Please sign up first.")
@@ -969,3 +973,7 @@ def launch():
 # Run the program
 if __name__ == "__main__":
     launch()
+
+# Self reminder: Use dicts for faster interaction
+# Do not nest Exception handlers for catching
+# Use None for checking the value of input
