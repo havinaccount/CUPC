@@ -52,6 +52,8 @@ import unicodedata # For username normalizations
 import sys # For a cleaner and more stable code exit
 import numpy as np # For fast calculations
 import colorama # For coloring Exceptions
+from typing import Final
+from pathlib import Path
 
 # Following explanations may change depending on bugfixes and new features
 
@@ -67,17 +69,17 @@ logging.basicConfig(
 def current_timestamp():
     return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-BASE_DIR = os.path.dirname(__file__)
-USER_FILE = os.path.join(BASE_DIR, "users.json")
-USER_HASH = os.path.join(BASE_DIR, "users.hash")
-MAX_ATTEMPTS = 5
+BASE_DIR: Final = Path(__file__).parent
+USER_FILE: Final = BASE_DIR / "users.json"
+USER_HASH: Final = BASE_DIR / "users.hash"
+MAX_ATTEMPTS: Final = 5
 attempts = 0
 users_cache = None
 delay = lambda attempt: 2 ** attempt
-USER_FILE_LOCK = threading.RLock()
+USER_FILE_LOCK: Final = threading.RLock()
 win_date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 # Datetime for app execution.
-EXP = "Current datetime is:"
+EXP: Final = "Current datetime is:"
 
 print(f"Using USER_FILE at : {USER_FILE}")
 print(f"Exists: {os.path.exists(USER_FILE)}")
@@ -125,9 +127,9 @@ def load_users():
         logging.error(colorama.Fore.RED + "FATAL: User file integrity tampered" + colorama.Style.RESET_ALL)
         print("Warning: User file integrity is tampered. Resetting users.")
         with USER_FILE_LOCK:
-            if os.path.exists(USER_FILE + '.tamp'):
-                os.remove(USER_FILE + ".tamp")
-            os.rename(USER_FILE, USER_FILE + '.tamp')
+            if os.path.exists(USER_FILE / '.tamp'):
+                os.remove(USER_FILE / ".tamp")
+            os.rename(USER_FILE, USER_FILE / '.tamp')
             recreate_user()
             if not recreate_user():
                 print(colorama.Fore.RED + "FATAL: Reset unsuccessful." + colorama.Style.RESET_ALL)
@@ -147,7 +149,7 @@ def load_users():
         print(colorama.Fore.YELLOW + "Warning: User data file was corrupted, All accounts have been removed." + colorama.Style.RESET_ALL)
         try:
             with USER_FILE_LOCK:    
-                os.rename(USER_FILE, USER_FILE + ".corrupted") # Take a backup of the corrupted user_file
+                os.rename(USER_FILE, USER_FILE / ".corrupted") # Take a backup of the corrupted user_file
             logging.info(f"Corrupted user file backed up as '{USER_FILE}.corrupted'")
         except Exception as e: # Catch the following exception
             logging.error(f"Failed to backup corrupted user file: {e}")
@@ -447,13 +449,13 @@ def login():
             else:
                 print("\nPassword is incorrect, Please try again\n")
                 attempt += 1
-
+                time.sleep(delay(attempt))
+                
     print("Maximum login attempts reached.")
     return False
 
 # -------------------- User Abilities --------------------
 def exiti():
-    print("Goodbye!") 
     logging.info("User successfully logged out.") 
     return True
 
@@ -885,7 +887,7 @@ def guess_game(username) -> None: # Can be changed for new return arguments
 def warm_up_terminal():
     # noinspection PyBroadException
     try:
-        getpass.getpass(prompt="Press enter to continue...")
+        getpass.getpass(prompt="Press enter to continue...\n")
     except Exception:
         pass
 
@@ -906,7 +908,7 @@ def main():
     actions = {
         "1": lambda: (print("Starting sign-up"), time.sleep(0.5), sign_up()),
         "2": lambda: (print("Starting Login"), time.sleep(0.5), login()),
-        "3": lambda: (print("Exiting"), sys.exit()),
+        "3": lambda: (print("\nExiting\n"), sys.exit()),
         "9783": lambda: hidden_function()
     }
 
