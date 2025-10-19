@@ -51,7 +51,7 @@ import unicodedata # For username normalizations
 import sys # For a cleaner and more stable code exit
 import numpy as np # For fast calculations
 import colorama # For coloring Exceptions
-from typing import Final
+from typing import Final, Callable
 from pathlib import Path
 
 # Following explanations may change depending on bugfixes and new features
@@ -65,26 +65,26 @@ logging.basicConfig(
 )
 
 # -------------------- Variables --------------------
-def current_timestamp():
+def current_timestamp() -> str:
     return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
 # File paths
-BASE_DIR: Final = Path.cwd()
-USER_FILE: Final = BASE_DIR / "users.json"
-USER_HASH: Final = BASE_DIR / "users.hash"
+BASE_DIR: Path = Path.cwd()
+USER_FILE: Path = BASE_DIR / "users.json"
+USER_HASH: Path = BASE_DIR / "users.hash"
 
-win_date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-EXP: Final = "Current datetime is:"
-MAX_ATTEMPTS: Final = 5
-attempts = 0
-delay = lambda attempt: 2 ** attempt
-users_cache = None
-USER_FILE_LOCK: Final = threading.RLock()
-
-# Datetime for app execution.
-
+# App config
+MAX_ATTEMPTS: Final[int] = 5
+attempts: int = 0
+delay: Callable[[int], int] = lambda attempt: 2 ** attempt
+users_cache: dict | None = None
+USER_FILE_LOCK: Final[threading.RLock] = threading.RLock()
 
 print(f"Using USER_FILE at : {USER_FILE}")
 print(f"Exists: {USER_FILE.exists()}")
+# Datetime for app execution.
+EXP: Final[str] = "Current datetime is:"
+win_date: str = current_timestamp()
 
 # -------------------- Still in development --------------------
 
@@ -223,6 +223,8 @@ def save_users(users_dict) -> None | bool:
         print(colorama.Fore.RED + "FATAL: Error saving user data. Please try again." + colorama.Style.RESET_ALL)
         logging.error(f"Failed to save user data or hash: {e}")
         return False
+    
+    return True
 # -------------------- User Actions --------------------
 
 # Sign up function with PIN validation and hashing
@@ -260,7 +262,7 @@ def sign_up():
             logging.warning("A User tried to sign-up as admin.")
             continue
 
-        password: str = safe_getpass("Choose a PIN (numbers only, Pass is hidden): ")
+        password: str | None | bool = safe_getpass("Choose a PIN (numbers only, Pass is hidden): ")
 
         if password is None: # Fix for safe_getpass
             print("Nothing Entered, Please try again.")
@@ -559,70 +561,81 @@ def admin_panel(username: str = "admin"):
         username (str, optional): _description_. Defaults to "admin".
 
     Returns:
-        TrTrue, None: Essential admin panel for admin
+        bool: True when admin panel exits successfully.
     """
     print("Welcome Admin.")
     logging.info("Admin panel accessed.")
     
     global users_cache
     
-    while True:
-        print("\n1. Reset user file", "\n2. List of users", "\n3. User Panel", "\n4. Logout")
+    try:
+        while True:
+            print("\n1. Reset user file", "\n2. List of users", "\n3. User Panel", "\n4. Logout")
 
-        choice = safe_input("Choose an option: ", strip=True)
-        
-        # Depending on the choice, Execute the following functions.
-        match choice:
-            case "1":
-                if not USER_FILE.exists():
-                    logging.warning("Admin tried to reset user file, but it was not found.")
-                    print(colorama.Fore.YELLOW + "Warning: User file not found." + colorama.Style.RESET_ALL)
-                    continue    
-                
-                try:
-                    USER_FILE.unlink()
-                    with USER_FILE_LOCK:
-                        success = recreate_user()
-                    if success:
-                        print("'users.json' has been reset.")
-                        users_cache = {}
-                        logging.info(f"Admin reset user file at {current_timestamp()}")
-                    else:
-                        raise RuntimeError("User file reset failed.")
-                except Exception as e:
-                    print(colorama.Fore.RED + "FATAL: User file reset failed. Exiting program." + colorama.Style.RESET_ALL)
-                    logging.error(str(e))
-                    sys.exit(1)
-            case "4":
-                print("Goodbye!")
-                logging.info("Admin Exited Panel")
-                break
-            case "2":
-                print("\nRegistered Users:")
-                try:
-                    users = users_cache if users_cache else load_users()
-                    if not users: print("No users found."); logging.warning("User file isn't available for admin or empty."); continue
-                    print("\n".join(f"   - {user}" for user in users))
-                except orjson.JSONDecodeError:
-                    print(colorama.Fore.RED + "FATAL: User file corrupted." + colorama.Style.RESET_ALL)
-                    logging.warning("User file corrupted.")
-                    continue
-            case "3":
-                user_panel(username)
-            case _:
-                print("Invalid choice.")
-                logging.warning("Wrong choice made, repeating process.")
+            choice = safe_input("Choose an option: ", strip=True)
+            
+            # Depending on the choice, Execute the following functions.
+            match choice:
+                case "1":
+                    if not USER_FILE.exists():
+                        logging.warning("Admin tried to reset user file, but it was not found.")
+                        print(colorama.Fore.YELLOW + "Warning: User file not found." + colorama.Style.RESET_ALL)
+                        continue    
+                    
+                    try:
+                        USER_FILE.unlink()
+                        with USER_FILE_LOCK:
+                            success = recreate_user()
+                        if success:
+                            print("'users.json' has been reset.")
+                            users_cache = {}
+                            logging.info(f"Admin reset user file at {current_timestamp()}")
+                        if USER_HASH.exists():
+                            with USER_FILE_LOCK:
+                                USER_HASH.unlink()
+                                print("user.hash successfully deleted.")
+                                logging.info("Both user file and user hash were reset")
+                        else:
+                            raise RuntimeError("Both User file and hash file reset failed.")
+                    except Exception as e:
+                        print(colorama.Fore.RED + "FATAL: User file reset failed. Exiting program." + colorama.Style.RESET_ALL)
+                        logging.error(str(e))
+                        sys.exit(1)
+                case "4":
+                    print("Goodbye!")
+                    logging.info("Admin Exited Panel")
+                    break
+                case "2":
+                    print("\nRegistered Users:")
+                    try:
+                        users = users_cache if users_cache else load_users()
+                        if not users: print("No users found."); logging.warning("User file isn't available for admin or empty."); continue
+                        print("\n".join(f"   - {user}" for user in users))
+                    except orjson.JSONDecodeError:
+                        print(colorama.Fore.RED + "FATAL: User file corrupted." + colorama.Style.RESET_ALL)
+                        logging.warning("User file corrupted.")
+                        continue
+                case "3":
+                    user_panel(username)
+                case _:
+                    print("Invalid choice.")
+                    logging.warning("Wrong choice made, repeating process.")
+    except Exception as e:
+        logging.error(f"Admin panel failed: {e}")
+        return False
+    
     return True
 
 # -------------------- Hidden functions --------------------
 
 # Hidden admin setup function (PIN only)
-def hidden_function() -> bool | None:
-    """_summary_
+def hidden_function() -> bool:
+    """Sets up or updates the admin PIN securely.
 
     Returns:
-        bool: It does not need to be returning data
+        bool: True if setup succeeds, False otherwise.
     """
+
     users = load_users()
     print("\n===ADMIN SETUP===")
 
@@ -662,53 +675,58 @@ def hidden_function() -> bool | None:
             
             if "admin" in users: # If the 'admin' is already registered, confirm to overwrite.
                     choice = safe_input('Admin PIN already exists, Overwrite? (y/n): ', lower=True, strip=True)
-
-                # Choice checking
-                    if not isinstance(choice, str):
-                        return False
-                    if choice.lower().strip() == 'n':
-                        break
-                    elif choice == 'y':
+                    
+                    if isinstance(choice, str):
+                    # Choice checking
+                        if choice.lower().strip() == 'n':
+                            break
+                        elif choice == 'y':
+                            try:
+                                users = load_users()
+                                check = safe_getpass("Please enter admin's previous PIN: ")
+                                stored_hash = users.get("admin")
+                                if isinstance(check, str):
+                                    if bcrypt.checkpw(check.encode(), stored_hash):      
+                                        if not isinstance(password, str):
+                                            print("Invalid admin PIN input.")
+                                            logging.warning("Admin PIN setup aborted: non-string input.")
+                                            return False  
+                                        success = hash_admin_pin(password)
+                                        if success:
+                                            print("Admin PIN overwritten successfully.")
+                                            logging.info("Admin PIN overwritten.")
+                                            break
+                                        else:
+                                            logging.error("Admin PIN overwrite failed.")
+                                    else:
+                                        print("Password does not match the old one.")
+                                        logging.warning("Admin Setup failed due to the original PIN not matching.")
+                                        break
+                            except Exception as e:
+                                logging.error(f"Admin hashing failed: {e}")
+                                break
+                        elif choice is None:
+                            print("Nothing entered, Please try again.")
+                            continue
+                        else:
+                            print("Wrong choice, Please try again later.")
+                    else:
                         try:
-                            if not isinstance(password, str):
-                                print("Invalid admin PIN input.")
-                                logging.warning("Admin PIN setup aborted: non-string input.")
-                                return False  
                             success = hash_admin_pin(password)
                             if success:
-                                print("Admin PIN overwritten successfully.")
-                                logging.info("Admin PIN overwritten.")
+                                logging.info("Admin PIN created.")
                                 break
                             else:
-                                logging.error("Admin PIN overwrite failed.")
+                                print("Admin PIN creation failed.")
+                                break
                         except Exception as e:
                             logging.error(f"Admin hashing failed: {e}")
                             break
-                    elif choice is None:
-                        print("Nothing entered, Please try again.")
-                        continue
-                    else:
-                        print("Wrong choice, Please try again later.")
-            else:
-                try:
-                    if not isinstance(password, str):
-                        print("Invalid admin PIN input.")
-                        logging.warning("Admin PIN setup aborted: non-string input.")
-                        return False  
-                    success = hash_admin_pin(password)
-                    if success:
-                        logging.info("Admin PIN created.")
-                        break
-                    else:
-                        print("Admin PIN creation failed.")
-                        break
-                except Exception as e:
-                    logging.error(f"Admin hashing failed: {e}")
-                    break
     except Exception as e:
         logging.error(f"Login failed: {e}")
         return False
     
+    return True
 # -------------------- User Abilities (pt2) --------------------
 
 def get_input(prompt: str) -> str | bool | None: # Type hinting for get_input
@@ -862,7 +880,8 @@ def guess_game(username) -> None: # Can be changed for new return arguments
     try:
         while True:   
 
-            guess = safe_input("Guess a number (1-20): ", strip=True)
+            raw_guess: str | bool | None = safe_input("Guess a number (1-20): ", strip=True)
+
 
             if guess is False:
                 print("Aborting game.")
@@ -872,11 +891,12 @@ def guess_game(username) -> None: # Can be changed for new return arguments
                 print("Your guess could not be empty, Pick a number.")
                 continue
             # Check for the number being digits
-            try:
-                guess = int(guess)
-            except ValueError:
-                print(colorama.Fore.YELLOW + "Warning: You should guess a number." + colorama.Style.RESET_ALL)
-                continue
+            if isinstance(raw_guess, str):    
+                try:
+                    guess: int = int(raw_guess)
+                except ValueError:
+                    print(colorama.Fore.YELLOW + "Warning: You should guess a number." + colorama.Style.RESET_ALL)
+                    continue
             # Minimize the options
             if guess < 1 or guess > 20:
                 print("You should pick a number between 1 and 20")
@@ -912,6 +932,16 @@ def warm_up_terminal():
     except Exception:
         pass
 
+def start_signup():
+    print("Starting sign-up")
+    time.sleep(0.5)
+    sign_up()
+
+def start_login():
+    print("Starting Login")
+    time.sleep(0.5)
+    login()
+
 # -------------------- Main program ------------------
 def main():
     """
@@ -927,8 +957,8 @@ def main():
     print(EXP, current_timestamp())
 
     actions = {
-        "1": lambda: (print("Starting sign-up"), time.sleep(0.5), sign_up()),
-        "2": lambda: (print("Starting Login"), time.sleep(0.5), login()),
+        "1": start_signup,
+        "2": start_login,
         "3": lambda: (print("\nExiting\n"), sys.exit()),
         "9783": lambda: hidden_function()
     }
