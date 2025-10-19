@@ -51,7 +51,7 @@ import unicodedata # For username normalizations
 import sys # For a cleaner and more stable code exit
 import numpy as np # For fast calculations
 import colorama # For coloring Exceptions
-from typing import Final, Callable
+from typing import Final, Callable, Any, Union, NoReturn, Optional
 from pathlib import Path
 
 # Following explanations may change depending on bugfixes and new features
@@ -95,7 +95,7 @@ win_date: str = current_timestamp()
 
 # -------------------- Still in development --------------------
 
-def recreate_user():
+def recreate_user() -> bool:
     """
     The function `recreate_user` attempts to recreate a user file by writing an empty list in binary
     format, handling exceptions and logging errors if necessary.
@@ -130,7 +130,7 @@ def load_users():
         return users_cache # Return cached users if already loaded
 
     file_exists: bool = USER_FILE.exists()
-    tamp_path = USER_FILE.with_name(USER_FILE.name + ".tamp")
+    tamp_path: Path = USER_FILE.with_name(USER_FILE.name + ".tamp")
 
     if users_cache:
         if not verify_user_file_integrity():
@@ -143,7 +143,7 @@ def load_users():
                     USER_FILE.rename(tamp_path)
                 else:
                     logging.error(f"Cannot rename missing file: {USER_FILE}")
-                success = recreate_user()
+                success: bool = recreate_user()
                 if not success:
                     print(colorama.Fore.RED + "FATAL: Reset unsuccessful." + colorama.Style.RESET_ALL)
                     sys.exit(1)
@@ -165,8 +165,8 @@ def load_users():
     try:
         with USER_FILE_LOCK: # With the following thread lock, open user_file
             with open(USER_FILE, 'rb') as file:
-                raw_data = file.read()
-                temp_cache = orjson.loads(raw_data)
+                raw_data: bytes = file.read()
+                temp_cache: dict[Any, Any] = orjson.loads(raw_data)
                 if not isinstance(temp_cache, dict):
                     raise ValueError(colorama.Fore.RED + f"FATAL: User file corrupted: expected dict, got {type(temp_cache)}" + colorama.Style.RESET_ALL)
                 users_cache = temp_cache
@@ -193,7 +193,7 @@ def load_users():
     
     return users_cache # Flush the user_cache
 
-def validate_users_dict(users_dict) -> bool:
+def validate_users_dict(users_dict: dict) -> bool:
     """
     The code snippet includes a function to validate a dictionary of users and another function to save
     the users to a file, with error handling for invalid user data format.
@@ -242,7 +242,7 @@ def save_users(users_dict) -> None | bool:
 
     # Save new user data
     try:
-        serialized_data = orjson.dumps(users_dict)
+        serialized_data: bytes = orjson.dumps(users_dict)
         with USER_FILE_LOCK:  # With the thread lock inbound
             with open(USER_FILE, 'wb') as file:
                 file.write(serialized_data) # Dump the sign-up info
@@ -253,7 +253,7 @@ def save_users(users_dict) -> None | bool:
         return False
     # Hash and store integrity value
     try:
-        hasher_value = blake3(serialized_data).hexdigest()
+        hasher_value: str = blake3(serialized_data).hexdigest()
         with open(USER_HASH, 'wb') as hasher_file:
             hasher_file.write(hasher_value.encode('utf-8'))
         logging.info(f"User file hashed successfully {hasher_value}")
@@ -271,11 +271,11 @@ def sign_up():
     # user to choose a username and a PIN (numeric password) for account creation. Here is a breakdown of
     # the functionality:
     print("\n=== SIGN UP ===")
-    users = load_users()
+    users: dict[Any, Any] = load_users()
     
     while True:
 
-        username: str = normalize_username(safe_input("Choose a username: ", strip=True)) # Make a str username const
+        username: str | None | bool = normalize_username(safe_input("Choose a username: ", strip=True)) # Make a str username const
         
         logging.info(f"Sign-up attempt for username: {username}")
 
@@ -292,6 +292,10 @@ def sign_up():
             print("Username cannot be empty or spaces, Please try again.")
             logging.warning("Sign-up failed: Empty username entered.")
             continue  
+        
+        if not isinstance(username, str):
+            print("Invalid PIN Input.")
+            return False
         
         if len(username) < 4: # Username length verification
             print("Please choose a longer username.")
@@ -322,8 +326,12 @@ def sign_up():
             print("Password must contain 4 digits.")
             continue
         
-        confirm = safe_getpass("Confirm your PIN: ")
+        confirm: str | bool | None = safe_getpass("Confirm your PIN: ")
 
+        if not isinstance(confirm, str):
+            print("Invalid PIN Input.")
+            return False
+        
         if confirm is None: # Fix for safe_getpass
             print("Nothing Entered, Please try again.")
             continue
@@ -332,7 +340,7 @@ def sign_up():
             print("PINs do not match, Please try again.")
             continue
         if isinstance(password, str): # Second check for checking the data type of password
-            success = hash_pass(username, password)
+            success: bool = hash_pass(username, password)
             if success:
                 print("Account created successfully!")
             else:
@@ -360,7 +368,7 @@ def safe_getpass(string: str, strip: bool = True) -> str | bool | None: # Type h
     `False` if an exception occurs during execution.
     """
     try:
-        value = getpass.getpass(string)
+        value: str = getpass.getpass(string)
         if not value: return None
         return value.strip() if strip else value # Check if strip is True (bool)
     except Exception as e:
@@ -395,8 +403,8 @@ def _set_user_secret(username: str, secret: str, label: str) -> bool: # Use this
     error during the process.
     """
     try:
-        users = load_users()
-        hashed = bcrypt.hashpw(secret.encode("utf-8"), bcrypt.gensalt(rounds=12))
+        users: dict[Any, Any] = load_users()
+        hashed: bytes = bcrypt.hashpw(secret.encode("utf-8"), bcrypt.gensalt(rounds=12))
         users[username] = hashed.decode("utf-8")
         save_users(users)
         logging.info(f"{username} {label} updated successfully.")
@@ -458,7 +466,7 @@ def hash_admin_pin(password: str) -> bool:
     `_set_user_secret` function was successful in setting the admin PIN with the provided password, and
     `False` otherwise.
     """
-    success = _set_user_secret(ADMIN_USER, password, "admin PIN")
+    success: bool = _set_user_secret(ADMIN_USER, password, "admin PIN")
     if success:
         print("Admin PIN set successfully.")
     else:
@@ -477,14 +485,14 @@ def verify_user_file_integrity() -> bool: # Checks the integrity of files
     try:
         # Compute the hash of the USER_FILE
         with USER_FILE_LOCK, open(USER_FILE, "rb") as file:
-            hasher = blake3()
+            hasher: blake3 = blake3()
             for chunk in iter(lambda: file.read(8192), b""):
                 hasher.update(chunk)
-            current_hash = hasher.hexdigest()
+            current_hash: str = hasher.hexdigest()
 
         # Read stored hash from USER_HASH
         with open(USER_HASH, "r", encoding="utf-8") as hasher_file: # encoding is basically normalizing the string
-            stored_hash = hasher_file.read().strip() # Reads the file and removes trailing whitespaces
+            stored_hash: str = hasher_file.read().strip() # Reads the file and removes trailing whitespaces
 
         return current_hash == stored_hash
     except FileNotFoundError as e:
@@ -523,7 +531,7 @@ def safe_input(prompt: str = "", strip: bool = True, lower: bool = False, upper:
     it returns `False` if there is an `EOFError` or `KeyboardInterrupt` during input reading.
     """
     try:
-        value = input(prompt)
+        value: str = input(prompt)
         if strip:
             value = value.strip()
         if lower:
@@ -549,13 +557,17 @@ def login():
     inputs, incorrect password, or when the maximum login attempts are reached.
     """
     print("\n=== LOGIN ===")
-    users = load_users() # Do not wrap this up in a try/except block, 'load_users' already handles that
+    users: dict[Any, Any] = load_users() # Do not wrap this up in a try/except block, 'load_users' already handles that
     
     if not users:
         print("No users registered. Please sign up first.")
         return False
 
-    username: str | None = normalize_username(safe_input("Username: ", strip=True))
+    username: str | None | bool = normalize_username(safe_input("Username: ", strip=True))
+    
+    if not isinstance(username, str):
+        print("Invalid username Input.")
+        return False
     
     if username is False:
         print("Aborting Sign-in")
@@ -578,8 +590,8 @@ def login():
         logging.warning("Login failed: Empty username entered.")
         return False
     
-    dummy_hash = bcrypt.hashpw(b"dummy", bcrypt.gensalt(rounds=4)) # Making an easy dummy hash for securing brute-force attacks
-    stored_hash = users.get(username, dummy_hash)
+    dummy_hash: bytes = bcrypt.hashpw(b"dummy", bcrypt.gensalt(rounds=4)) # Making an easy dummy hash for securing brute-force attacks
+    stored_hash: Any = users.get(username, dummy_hash)
     
     if isinstance(stored_hash, str):
         try:
@@ -593,7 +605,7 @@ def login():
     
     while attempt < MAX_ATTEMPTS:
             
-        password = safe_getpass("PIN (Pass is hidden): ") # Getting password
+        password: str | bool | None = safe_getpass("PIN (Pass is hidden): ") # Getting password
 
         if password is None:
             print("Login cancelled.")
@@ -624,8 +636,11 @@ def login():
                 logging.info("Admin panel executed.")
                 admin_panel()
                 return True
-            user_panel(username)
-            return True
+            if isinstance(username, str):    
+                user_panel(username)
+                return True
+            else:
+                return False
         else:
             print("\nPassword is incorrect, Please try again\n")
             attempt += 1
@@ -645,7 +660,7 @@ def exits() -> bool:
     return True
 
 # User Panel
-def user_panel(username) -> bool | None:    
+def user_panel(username: str) -> bool | None:    
     """
     The function `user_panel` takes a username as input, displays a menu of actions for the user to
     choose from, and executes the corresponding action based on the user's choice until the user decides
@@ -668,7 +683,7 @@ def user_panel(username) -> bool | None:
     while True: 
         print("\n1. Calculation", "\n2. Change PIN", "\n3. Guess the Number", "\n4. Exit")
 
-        choice = safe_input("Please select a number: ", strip=True) # Get a number from user.
+        choice: Union[str, bool, None] = safe_input("Please select a number: ", strip=True) # Get a number from user.
 
         if not choice:
             print("Nothing entered, Please try again.")
@@ -679,7 +694,7 @@ def user_panel(username) -> bool | None:
             print("You have to enter a string.")
             return False
         else:
-            action = actions.get(choice)
+            action: Optional[Callable[[], Any]] | None = actions.get(choice)
             if action:
                 action()
             else:
@@ -689,7 +704,7 @@ def user_panel(username) -> bool | None:
             return True
 
 # Change PIN
-def change_pin(username):
+def change_pin(username: str):
     """
     The `change_pin` function in Python allows a user to change their PIN securely by verifying the new
     PIN and updating it in the user data.
@@ -701,7 +716,7 @@ def change_pin(username):
     function call if all the conditions are met successfully.
     """
     try: # Using a try/except block to prevent errors
-        users = load_users()
+        users: dict[Any, Any] = load_users()
     except (orjson.JSONDecodeError, FileNotFoundError):
         print("User file not found")
         return False
@@ -710,7 +725,7 @@ def change_pin(username):
     
     while True:
 
-        new_pin = safe_getpass("Enter new PIN: ") # Ask the user for the following new PIN 
+        new_pin: str | bool | None = safe_getpass("Enter new PIN: ") # Ask the user for the following new PIN 
 
         if not isinstance(new_pin, str):
             return False
@@ -719,7 +734,7 @@ def change_pin(username):
             print("PIN must be 4 digits or higher.")
             continue
 
-        confirm = safe_getpass("Confirm your following PIN: ") # Password Confirmation.
+        confirm: str | bool | None = safe_getpass("Confirm your following PIN: ") # Password Confirmation.
         
         if confirm != new_pin:
             print("PINs do not match, Please try again.")
@@ -739,7 +754,7 @@ def change_pin(username):
 # -------------------- Admin Abilities --------------------
     
 # Admin Panel
-def admin_panel(username: str = "admin"):
+def admin_panel(username: str = "admin") -> bool:
     """_summary_
 
     Args:
@@ -757,7 +772,7 @@ def admin_panel(username: str = "admin"):
         while True:
             print("\n1. Reset user file", "\n2. List of users", "\n3. User Panel", "\n4. Logout")
 
-            choice = safe_input("Choose an option: ", strip=True)
+            choice: str | bool | None = safe_input("Choose an option: ", strip=True)
             
             # Depending on the choice, Execute the following functions.
             match choice:
@@ -770,7 +785,7 @@ def admin_panel(username: str = "admin"):
                     try:
                         USER_FILE.unlink()
                         with USER_FILE_LOCK:
-                            success = recreate_user()
+                            success: bool = recreate_user()
                         if success:
                             print("'users.json' has been reset.")
                             users_cache = {}
@@ -793,7 +808,7 @@ def admin_panel(username: str = "admin"):
                 case "2":
                     print("\nRegistered Users:")
                     try:
-                        users = users_cache if users_cache else load_users()
+                        users: dict[Any, Any] = users_cache if users_cache else load_users()
                         if not users: print("No users found."); logging.warning("User file isn't available for admin or empty."); continue
                         print("\n".join(f"   - {user}" for user in users))
                     except orjson.JSONDecodeError:
@@ -816,12 +831,12 @@ def admin_panel(username: str = "admin"):
 # Hidden admin setup function (PIN only)
 def hidden_function() -> bool:
     """Sets up or updates the admin PIN securely."""
-    users = load_users()
+    users: dict[Any, Any] = load_users()
     print("\n===ADMIN SETUP===")
 
     try:
         while True:
-            password = safe_getpass("Enter new admin PIN (Pass is hidden): ")
+            password: str | bool | None = safe_getpass("Enter new admin PIN (Pass is hidden): ")
 
             if not isinstance(password, str) or not password:
                 print("Invalid input. Please try again.")
@@ -844,7 +859,7 @@ def hidden_function() -> bool:
                 print("Password must be at least 4 digits.")
                 continue
 
-            confirm = safe_getpass("Confirm your PIN: ")
+            confirm: str | bool | None = safe_getpass("Confirm your PIN: ")
             if confirm != password:
                 print("Passwords do not match. Please try again.")
                 continue
@@ -858,7 +873,7 @@ def hidden_function() -> bool:
                 return False
 
             # Admin already exists — confirm overwrite
-            choice = safe_input("Admin PIN already exists. Overwrite? (y/n): ", lower=True, strip=True)
+            choice: str | bool | None = safe_input("Admin PIN already exists. Overwrite? (y/n): ", lower=True, strip=True)
             if choice == "n":
                 print("Admin Setup cancelled.")
                 return False
@@ -867,8 +882,8 @@ def hidden_function() -> bool:
                 continue
 
             # Verify previous PIN
-            check = safe_getpass("Please enter admin's previous PIN: ")
-            stored_hash = users.get("admin")
+            check: str | bool | None = safe_getpass("Please enter admin's previous PIN: ")
+            stored_hash: Any = users.get("admin")
             if not stored_hash:
                 print("Stored hash is damaged or empty")
                 return False
@@ -898,7 +913,7 @@ def hidden_function() -> bool:
 def get_input(prompt: str) -> str | bool | None: # Type hinting for get_input
     try:
         while True:
-            value = input(prompt).strip()
+            value: str = input(prompt).strip()
             return value if value else None
     except (KeyboardInterrupt, EOFError):
         print("\n\nInput stream closed. Cannot read input.\n")
@@ -906,17 +921,17 @@ def get_input(prompt: str) -> str | bool | None: # Type hinting for get_input
         return False # or break, or fallback logic
     
 # Calculator
-def calc(username: str):
+def calc(username: str) -> None | bool:
     """A Simple, interactive calculator"""
     print(f"Welcome {username}")
     logging.info(f"User {username} accessed calculator.")
     while True:
         try:
-            raw_input = []
+            raw_input: list[str | float] = []
     
             # Get numbers (they will be saved in 'numbers')
             while True:
-                user_input = get_input("\nEnter numbers one by one (Type 'done' when finished): ") 
+                user_input: str | bool | None = get_input("\nEnter numbers one by one (Type 'done' when finished): ") 
                 if user_input is None:
                     print("Nothing entered, Please try again.")
                     continue
@@ -927,7 +942,7 @@ def calc(username: str):
                 if not isinstance(user_input, str):
                     return False
                 else:
-                    normalized = user_input.lower().strip() 
+                    normalized: str = user_input.lower().strip() 
                 
                 if normalized == 'done':
                     break
@@ -935,9 +950,9 @@ def calc(username: str):
                 raw_input.append(user_input)
             
             try:
-                numbers = [float(x) for x in raw_input]
+                numbers: list[float] = [float(x) for x in raw_input]
                 # Use numpy array for a large chunk of numbers
-                arr = np.round(np.array(numbers, dtype=np.float64), 6)
+                arr: np.ndarray = np.round(np.array(numbers, dtype=np.float64), 6)
             except ValueError:
                 print("One or multiple numbers were invalid")
                 return False
@@ -958,7 +973,7 @@ def calc(username: str):
             print(f"Addition = {addition(arr)}")
             print(f"Subtraction = {subtraction(arr)}")
             
-            again = safe_input("\nDo you want to recalculate again? (y/n): \n", lower=True, strip=True)
+            again: str | bool | None = safe_input("\nDo you want to recalculate again? (y/n): \n", lower=True, strip=True)
             
             if again is None:
                 print("Nothing entered, Please try again later.")
@@ -974,6 +989,7 @@ def calc(username: str):
             logging.error(f"Calculation failed: {e}")
             return None
 
+    return True
 def remainder(arr: list[float] | np.ndarray) -> float:
     """
     This Python function calculates the remainder of two numbers safely, checking for division by zero.
@@ -1029,7 +1045,7 @@ def multiplication(arr: list[float] | np.ndarray) -> float:
     return float(np.round(np.prod(arr), 3))
 # -------------------- User Abilities (pt3) --------------------
 
-def guess_game(username) -> None: # Can be changed for new return arguments
+def guess_game(username: str) -> None: # Can be changed for new return arguments
     """_summary_
 
     Args:
@@ -1038,7 +1054,7 @@ def guess_game(username) -> None: # Can be changed for new return arguments
     Returns:
         None: Returns nothing since it's an essential calculator 
     """
-    max_a: int = 5 # Give n attempt amount
+    max_a: Final[int] = 5 # Give n attempt amount
     attempt = 0
     target = randint(1, 20)
     logging.info(f"{username} Playing game.")
@@ -1091,25 +1107,25 @@ def guess_game(username) -> None: # Can be changed for new return arguments
 # def crash():
 #    raise Exception
 
-def warm_up_terminal():
+def warm_up_terminal() -> None:
     # noinspection PyBroadException
     try:
         getpass.getpass(prompt=colorama.Fore.YELLOW + "\nPress enter to continue...\n" + colorama.Style.RESET_ALL)
     except Exception:
         pass
 
-def start_signup():
+def start_signup()-> None:
     print("Starting sign-up")
     time.sleep(0.5)
     sign_up()
 
-def start_login():
+def start_login() -> None:
     print("Starting Login")
     time.sleep(0.5)
     login()
 
 # -------------------- Main program ------------------
-def main():
+def main() -> bool | None:
     """
     The main function in the Python code handles user input for sign-up, login, and exit options, with
     error handling and logging implemented.
@@ -1122,17 +1138,17 @@ def main():
     warm_up_terminal()
     print(EXP, current_timestamp())
 
-    actions = {
+    actions: dict[str, Callable[[], Union[None, NoReturn, bool]]] = {
         "1": start_signup,
         "2": start_login,
-        "3": lambda: (print("\nExiting\n"), sys.exit()),
+        "3": lambda: (print("\nExiting\n") or sys.exit()),
         "9783": lambda: hidden_function()
     }
 
     while True:
         print('\n1. Sign-up', "\n2. Login", "\n3. Exit") # Inlining the print function for less overhead
 
-        choice = safe_input("Choose an option (1-3): ", strip=True)
+        choice: str | bool | None = safe_input("Choose an option (1-3): ", strip=True)
 
         if choice is None:
             print("No input received")
