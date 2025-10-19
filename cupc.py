@@ -68,6 +68,12 @@ logging.basicConfig(
 def current_timestamp() -> str:
     return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
+@lru_cache(maxsize=128)
+def normalize_username(username: str) -> str:
+    if not isinstance(username, str):
+        raise ValueError("Username must be a string")
+    return unicodedata.normalize('NFKC', username.strip())
+
 # File paths
 BASE_DIR: Path = Path.cwd()
 USER_FILE: Path = BASE_DIR / "users.json"
@@ -79,6 +85,7 @@ attempts: int = 0
 delay: Callable[[int], int] = lambda attempt: 2 ** attempt
 users_cache: dict | None = None
 USER_FILE_LOCK: Final[threading.RLock] = threading.RLock()
+ADMIN_USER: Final[str] = normalize_username("admin")
 
 print(f"Using USER_FILE at : {USER_FILE}")
 print(f"Exists: {USER_FILE.exists()}")
@@ -89,6 +96,12 @@ win_date: str = current_timestamp()
 # -------------------- Still in development --------------------
 
 def recreate_user():
+    """
+    The function `recreate_user` attempts to recreate a user file by writing an empty list in binary
+    format, handling exceptions and logging errors if necessary.
+    :return: The function `recreate_user()` is returning a boolean value. If the operation is
+    successful, it returns `True`. If there is an exception during the operation, it returns `False`.
+    """
     try:
         empty_list: bytes = b'{}'
         with open(USER_FILE, "wb") as file:
@@ -99,16 +112,18 @@ def recreate_user():
         logging.warning(f"Failed to recreate user file: {e}")
         return False
 
-@lru_cache(maxsize=128)
-def normalize_username(username: str) -> str:
-    if not isinstance(username, str):
-        raise ValueError("Username must be a string")
-    return unicodedata.normalize('NFC', username.strip())
-
 # -------------------- JSON Handling --------------------
 
 # Load existing users from file
 def load_users():
+    """
+    The `load_users` function loads user data from a file, handles file integrity checks, and returns
+    the cached user data.
+    :return: The function `load_users()` returns the `users_cache` after loading the user data from a
+    file. If the user cache is already loaded, it returns the cached users. If the user file is not
+    found or corrupted, it resets the user data and returns an empty user cache. If there are any errors
+    during the loading process, it also returns an empty user cache.
+    """
     global users_cache # Make the user cache globally available
 
     if users_cache is not None:
@@ -117,23 +132,25 @@ def load_users():
     file_exists: bool = USER_FILE.exists()
     tamp_path = USER_FILE.with_name(USER_FILE.name + ".tamp")
 
-    if not verify_user_file_integrity():
-        logging.error(colorama.Fore.RED + "FATAL: User file integrity tampered" + colorama.Style.RESET_ALL)
-        print("Warning: User file integrity is tampered. Resetting users.")
-        with USER_FILE_LOCK:
-            if tamp_path.exists():
-                tamp_path.unlink()
-            if file_exists:
-                USER_FILE.rename(tamp_path)
-            else:
-                logging.error(f"Cannot rename missing file: {USER_FILE}")
-            success = recreate_user()
-            if not success:
-                print(colorama.Fore.RED + "FATAL: Reset unsuccessful." + colorama.Style.RESET_ALL)
-                sys.exit(1)
-        users_cache = {}
-        return users_cache
-
+    if users_cache:
+        if not verify_user_file_integrity():
+            logging.error(colorama.Fore.RED + "FATAL: User file integrity tampered" + colorama.Style.RESET_ALL)
+            print("Warning: User file integrity is tampered. Resetting users.")
+            with USER_FILE_LOCK:
+                if tamp_path.exists():
+                    tamp_path.unlink()
+                if file_exists:
+                    USER_FILE.rename(tamp_path)
+                else:
+                    logging.error(f"Cannot rename missing file: {USER_FILE}")
+                success = recreate_user()
+                if not success:
+                    print(colorama.Fore.RED + "FATAL: Reset unsuccessful." + colorama.Style.RESET_ALL)
+                    sys.exit(1)
+            users_cache = {}
+            return users_cache
+    else:
+        print("First initlization, Getting user file ready.\n\n")
     # Check for 'USER_FILE' existence
     if not file_exists:
         logging.warning("User file not found, starting with empty user list.")
@@ -177,6 +194,15 @@ def load_users():
     return users_cache # Flush the user_cache
 
 def validate_users_dict(users_dict) -> bool:
+    """
+    The code snippet includes a function to validate a dictionary of users and another function to save
+    the users to a file, with error handling for invalid user data format.
+    
+    :param users_dict: The `users_dict` parameter is expected to be a dictionary where the keys are
+    usernames (strings) and the values are hashed passwords (strings). The `validate_users_dict`
+    function checks if the input dictionary has the correct format by ensuring that it is indeed a
+    dictionary and that both the keys (user
+    """
     if not isinstance(users_dict, dict):
         return False
     try:
@@ -189,6 +215,18 @@ def validate_users_dict(users_dict) -> bool:
         return False
 # Save users to file
 def save_users(users_dict) -> None | bool:
+    """
+    The `save_users` function takes a dictionary of user data, validates it, creates a backup of
+    existing user data, saves the new user data to a file, and hashes the data for integrity
+    verification.
+    
+    :param users_dict: The `save_users` function takes a dictionary `users_dict` as input, which
+    contains user data to be saved. The function first validates the format of the user data in the
+    dictionary. If the data format is invalid, it raises a `ValueError`
+    :return: The `save_users` function returns a boolean value (`True` or `False`). It returns `True` if
+    the user data is successfully saved and hashed, and it returns `False` if there is an error during
+    the process of saving or hashing the user data.
+    """
     if not validate_users_dict(users_dict):
         raise ValueError("Invalid user data format")
 
@@ -229,6 +267,9 @@ def save_users(users_dict) -> None | bool:
 
 # Sign up function with PIN validation and hashing
 def sign_up():
+    # The above code is a Python function `sign_up()` that handles user sign-up process. It prompts the
+    # user to choose a username and a PIN (numeric password) for account creation. Here is a breakdown of
+    # the functionality:
     print("\n=== SIGN UP ===")
     users = load_users()
     
@@ -303,6 +344,21 @@ def sign_up():
         return True
 
 def safe_getpass(string: str, strip: bool = True) -> str | bool | None: # Type hints are for contributions
+    """
+    The function `safe_getpass` securely prompts the user for a password input, handling exceptions and
+    optionally stripping whitespace.
+    
+    :param string: The `string` parameter in the `safe_getpass` function is a string type that
+    represents the prompt message displayed to the user when requesting input for the password
+    :type string: str
+    :param strip: The `strip` parameter in the `safe_getpass` function is a boolean parameter that
+    determines whether or not to strip leading and trailing whitespaces from the password input before
+    returning it. If `strip` is set to `True`, the leading and trailing whitespaces will be removed from
+    the password input, defaults to True
+    :type strip: bool (optional)
+    :return: The function `safe_getpass` returns a string if successful, `None` if the input is empty,
+    `False` if an exception occurs during execution.
+    """
     try:
         value = getpass.getpass(string)
         if not value: return None
@@ -319,6 +375,25 @@ def safe_getpass(string: str, strip: bool = True) -> str | bool | None: # Type h
 #     raise VALUEERROR("Your message")
 
 def _set_user_secret(username: str, secret: str, label: str) -> bool: # Use this functions for different sets of requests
+    """
+    The function `_set_user_secret` takes a username, secret, and label, hashes the secret using bcrypt,
+    updates the user's secret in the database, and logs the result.
+    
+    :param username: The `username` parameter is a string that represents the username of the user for
+    whom the secret is being set
+    :type username: str
+    :param secret: The `secret` parameter in the `_set_user_secret` function is the user's secret
+    information that will be hashed and stored securely in the system. It is the sensitive information
+    that the user wants to keep confidential, such as a password or any other secret data
+    :type secret: str
+    :param label: The `label` parameter in the `_set_user_secret` function is used to specify the
+    purpose or type of secret being set for a user. It is a descriptive label that helps in logging and
+    identifying the specific action being performed on the user's secret
+    :type label: str
+    :return: The function `_set_user_secret` is returning a boolean value. It returns `True` if the
+    user's secret is successfully set and saved, and it returns `False` if there is an exception or
+    error during the process.
+    """
     try:
         users = load_users()
         hashed = bcrypt.hashpw(secret.encode("utf-8"), bcrypt.gensalt(rounds=12))
@@ -331,19 +406,59 @@ def _set_user_secret(username: str, secret: str, label: str) -> bool: # Use this
         return False
 
 def hash_pass(username: str, password: str | None) -> bool:
+    """
+    The function `hash_pass` takes a username and password as input, logs an error if the password is
+    not a string, and then sets the user's password as a secret using `_set_user_secret`.
+    
+    :param username: The `username` parameter is a string that represents the username of a user
+    :type username: str
+    :param password: The `password` parameter in the `hash_pass` function is expected to be a string. If
+    it is not a string, an error message will be logged, and the function will return `False`. The
+    function then calls `_set_user_secret` function with the `username`, `password`, and
+    :type password: str | None
+    :return: The function `hash_pass` is returning a boolean value. It returns `True` if the password is
+    a string and the `_set_user_secret` function is successfully called with the provided username,
+    password, and secret type "Password". If the password is not a string, it logs an error message and
+    returns `False`.
+    """
     if not isinstance(password, str):
         logging.error(f"Expected password as str, got {type(password)}")
         return False
     return _set_user_secret(username, password, "Password") # This is the first usage of '_set_user_secret', Using the same capability may add overhead, That's why we use same function
 
 def hash_new_pin(username: str, new_pin: str) -> bool:
+    """
+    The function `hash_new_pin` sets a new PIN for a user and returns a boolean value based on the
+    success of the operation.
+    
+    :param username: The `username` parameter is a string that represents the user's username
+    :type username: str
+    :param new_pin: The `new_pin` parameter is expected to be a string containing the new PIN that the
+    user wants to set
+    :type new_pin: str
+    :return: The function `hash_new_pin` is returning a boolean value. If the `new_pin` parameter is not
+    a string, the function logs an error message and returns `False`. Otherwise, it calls a private
+    function `_set_user_secret` with the `username`, `new_pin`, and a string "PIN", but the result of
+    this call is not shown in the provided code snippet.
+    """
     if not isinstance(new_pin, str):
         logging.error(f"Expected new_pin as str, got {type(new_pin)}")
         return False
     return _set_user_secret(username, new_pin, "PIN")
 
 def hash_admin_pin(password: str) -> bool:
-    success = _set_user_secret(normalize_username("admin"), password, "admin PIN")
+    """
+    The function `hash_admin_pin` sets the admin PIN using the provided password and returns a boolean
+    indicating whether the operation was successful.
+    
+    :param password: The `password` parameter in the `hash_admin_pin` function is a string that
+    represents the password that will be used to set the admin PIN
+    :type password: str
+    :return: The function `hash_admin_pin` is returning a boolean value. It returns `True` if the
+    `_set_user_secret` function was successful in setting the admin PIN with the provided password, and
+    `False` otherwise.
+    """
+    success = _set_user_secret(ADMIN_USER, password, "admin PIN")
     if success:
         print("Admin PIN set successfully.")
     else:
@@ -351,6 +466,14 @@ def hash_admin_pin(password: str) -> bool:
     return success
 
 def verify_user_file_integrity() -> bool: # Checks the integrity of files
+    """
+    The function `verify_user_file_integrity` checks the integrity of a user file by computing its hash
+    and comparing it to a stored hash.
+    :return: The `verify_user_file_integrity()` function returns a boolean value. It returns `True` if
+    the hash of the `USER_FILE` matches the stored hash in the `USER_HASH` file, indicating that the
+    file integrity is intact. If there is a file missing or an exception occurs during the integrity
+    check process, it returns `False`.
+    """
     try:
         # Compute the hash of the USER_FILE
         with USER_FILE_LOCK, open(USER_FILE, "rb") as file:
@@ -373,6 +496,32 @@ def verify_user_file_integrity() -> bool: # Checks the integrity of files
 
 # New type of input with error handling (Please don't change this unless improving it)
 def safe_input(prompt: str = "", strip: bool = True, lower: bool = False, upper: bool = False) -> str | bool | None: # New booleans are accepted
+    """
+    The `safe_input` function in Python takes user input with optional stripping, lowercasing, or
+    uppercasing, and handles exceptions like KeyboardInterrupt and EOFError.
+    
+    :param prompt: The `prompt` parameter in the `safe_input` function is a string that represents the
+    message or question displayed to the user when requesting input. It serves as a prompt to guide the
+    user on what input is expected from them
+    :type prompt: str
+    :param strip: The `strip` parameter in the `safe_input` function is a boolean flag that determines
+    whether leading and trailing whitespaces should be removed from the user input. If `strip` is set to
+    `True`, the input will be stripped of any leading or trailing whitespaces before further processing.
+    If `, defaults to True
+    :type strip: bool (optional)
+    :param lower: The `lower` parameter in the `safe_input` function is a boolean flag that, when set to
+    `True`, converts the input string to lowercase before returning it. This means that if `lower` is
+    `True`, any alphabetic characters in the input will be converted to lowercase. If `, defaults to
+    False
+    :type lower: bool (optional)
+    :param upper: The `upper` parameter in the `safe_input` function is a boolean flag that, when set to
+    `True`, converts the input string to uppercase before returning it. This means that if `upper` is
+    `True`, the input string will be transformed to all uppercase characters, defaults to False
+    :type upper: bool (optional)
+    :return: The function `safe_input` returns a string if input is successfully read and processed
+    according to the specified conditions. It returns `None` if the input is empty after processing, and
+    it returns `False` if there is an `EOFError` or `KeyboardInterrupt` during input reading.
+    """
     try:
         value = input(prompt)
         if strip:
@@ -391,6 +540,14 @@ def safe_input(prompt: str = "", strip: bool = True, lower: bool = False, upper:
 
 # Login function with PIN validation and verification
 def login():
+    """
+    The `login` function in Python handles user authentication by verifying credentials and allowing
+    access to either the admin panel or user panel based on the input.
+    :return: The `login()` function returns a boolean value. It returns `True` if the login is
+    successful and either the user panel or admin panel is launched based on the username. It returns
+    `False` in various scenarios such as no users registered, invalid credentials, empty username
+    inputs, incorrect password, or when the maximum login attempts are reached.
+    """
     print("\n=== LOGIN ===")
     users = load_users() # Do not wrap this up in a try/except block, 'load_users' already handles that
     
@@ -399,6 +556,9 @@ def login():
         return False
 
     username: str | None = normalize_username(safe_input("Username: ", strip=True))
+    
+    if username is False:
+        print("Aborting Sign-in")
     
     if username is None:
         print("Nothing entered, Please try again later.")
@@ -475,12 +635,27 @@ def login():
     return False
 
 # -------------------- User Abilities --------------------
-def exits():
+def exits() -> bool:
+    """
+    The function `exits` logs a message indicating that the user has successfully logged out and returns
+    `True`.
+    :return: The function `exits()` is returning the boolean value `True`.
+    """
     logging.info("User successfully logged out.") 
     return True
 
 # User Panel
-def user_panel(username):    
+def user_panel(username) -> bool | None:    
+    """
+    The function `user_panel` takes a username as input, displays a menu of actions for the user to
+    choose from, and executes the corresponding action based on the user's choice until the user decides
+    to exit.
+    
+    :param username: The `username` parameter is a string representing the username of the user who has
+    logged in to the user panel. This username is used to personalize the user's experience within the
+    panel by performing actions such as calculations, changing PIN, playing games, and exiting the panel
+    :return: The `user_panel` function returns a boolean value or None.
+    """
     print("Login successful!")
     
     actions = {
@@ -511,10 +686,20 @@ def user_panel(username):
                 print("Invalid choice, Please try again.")
                 continue
         if exits():
-            break
+            return True
 
 # Change PIN
 def change_pin(username):
+    """
+    The `change_pin` function in Python allows a user to change their PIN securely by verifying the new
+    PIN and updating it in the user data.
+    
+    :param username: The `change_pin` function you provided seems to be a part of a program that allows
+    users to change their PIN. It loads user data, prompts the user to enter a new PIN, verifies the
+    PIN, and then changes the PIN if all conditions are met
+    :return: The `change_pin` function is returning the result of the `hash_new_pin(username, new_pin)`
+    function call if all the conditions are met successfully.
+    """
     try: # Using a try/except block to prevent errors
         users = load_users()
     except (orjson.JSONDecodeError, FileNotFoundError):
@@ -630,103 +815,84 @@ def admin_panel(username: str = "admin"):
 
 # Hidden admin setup function (PIN only)
 def hidden_function() -> bool:
-    """Sets up or updates the admin PIN securely.
-
-    Returns:
-        bool: True if setup succeeds, False otherwise.
-    """
-
+    """Sets up or updates the admin PIN securely."""
     users = load_users()
     print("\n===ADMIN SETUP===")
 
     try:
         while True:
-            password = safe_getpass("Enter new admin PIN (Pass is hidden): ") # Get a new PIN for registering admin
+            password = safe_getpass("Enter new admin PIN (Pass is hidden): ")
 
-            if not isinstance(password, str):
+            if not isinstance(password, str) or not password:
+                print("Invalid input. Please try again.")
+                continue
+                
+            if password is False:
+                print("Input error. Aborting.")
                 return False
+
             
-            if not password.isdigit(): # Verify Digits
-                print("PIN must contain only digits.")
-                logging.warning("Admin Setup failed (partially), Non-digit password entered.")
-                continue
-
             if password is None:
-                print("Nothing entered. Please try again.")
+                print("Nothing Entered, Please try again")
+                continue
+            
+            if not password.isdigit():
+                print("PIN must contain only digits.")
                 continue
 
-            if len(password) < 4: # Password length verification 
+            if len(password) < 4:
                 print("Password must be at least 4 digits.")
                 continue
-            try:
-                confirm = safe_getpass("Confirm your PIN: ") # Password confirmation
-            except (KeyboardInterrupt, EOFError):
-                print("\n\nInput stream closed. Cannot read input.\n")
-                logging.error("EOFError: Input failed")
-                return False # or break, or fallback logic
 
-            if confirm is None:
-                print("Nothing entered, Please try again.")
+            confirm = safe_getpass("Confirm your PIN: ")
+            if confirm != password:
+                print("Passwords do not match. Please try again.")
                 continue
 
-            if password != confirm:
-                print('Passwords do not match, Please try again.')
+            # If admin is not registered, create new PIN
+            if "admin" not in users:
+                if hash_admin_pin(password):
+                    logging.info("Admin PIN created.")
+                    return True
+                print("Admin PIN creation failed.")
+                return False
+
+            # Admin already exists — confirm overwrite
+            choice = safe_input("Admin PIN already exists. Overwrite? (y/n): ", lower=True, strip=True)
+            if choice == "n":
+                print("Admin Setup cancelled.")
+                return False
+            if choice != "y":
+                print("Invalid choice. Please try again.")
                 continue
-            
-            if "admin" in users: # If the 'admin' is already registered, confirm to overwrite.
-                    choice = safe_input('Admin PIN already exists, Overwrite? (y/n): ', lower=True, strip=True)
-                    
-                    if isinstance(choice, str):
-                    # Choice checking
-                        if choice.lower().strip() == 'n':
-                            break
-                        elif choice == 'y':
-                            try:
-                                users = load_users()
-                                check = safe_getpass("Please enter admin's previous PIN: ")
-                                stored_hash = users.get("admin")
-                                if isinstance(check, str):
-                                    if bcrypt.checkpw(check.encode(), stored_hash):      
-                                        if not isinstance(password, str):
-                                            print("Invalid admin PIN input.")
-                                            logging.warning("Admin PIN setup aborted: non-string input.")
-                                            return False  
-                                        success = hash_admin_pin(password)
-                                        if success:
-                                            print("Admin PIN overwritten successfully.")
-                                            logging.info("Admin PIN overwritten.")
-                                            break
-                                        else:
-                                            logging.error("Admin PIN overwrite failed.")
-                                    else:
-                                        print("Password does not match the old one.")
-                                        logging.warning("Admin Setup failed due to the original PIN not matching.")
-                                        break
-                            except Exception as e:
-                                logging.error(f"Admin hashing failed: {e}")
-                                break
-                        elif choice is None:
-                            print("Nothing entered, Please try again.")
-                            continue
-                        else:
-                            print("Wrong choice, Please try again later.")
-                    else:
-                        try:
-                            success = hash_admin_pin(password)
-                            if success:
-                                logging.info("Admin PIN created.")
-                                break
-                            else:
-                                print("Admin PIN creation failed.")
-                                break
-                        except Exception as e:
-                            logging.error(f"Admin hashing failed: {e}")
-                            break
+
+            # Verify previous PIN
+            check = safe_getpass("Please enter admin's previous PIN: ")
+            stored_hash = users.get("admin")
+            if not stored_hash:
+                print("Stored hash is damaged or empty")
+                return False
+            if not isinstance(check, str) or not isinstance(stored_hash, str):
+                print(f"Invalid input or stored hash format. Got {type(check)} and {type(stored_hash)}")
+                return False
+
+            if not bcrypt.checkpw(check.encode(), stored_hash.encode()):
+                print("Incorrect previous PIN. Setup aborted.")
+                return False
+
+            # Overwrite admin PIN
+            if hash_admin_pin(password):
+                print("Admin PIN overwritten successfully.")
+                logging.info("Admin PIN overwritten.")
+                return True
+
+            print("Admin PIN overwrite failed.")
+            return False
+
     except Exception as e:
-        logging.error(f"Login failed: {e}")
+        logging.error(f"Admin setup failed: {e}")
         return False
-    
-    return True
+
 # -------------------- User Abilities (pt2) --------------------
 
 def get_input(prompt: str) -> str | bool | None: # Type hinting for get_input
@@ -989,6 +1155,10 @@ def main():
 
 # Launch script for modularizing
 def launch():
+    """
+    The `launch` function attempts to execute the `main` function, handling any exceptions that may
+    occur and providing appropriate messages before exiting the program.
+    """
     # noinspection PyBroadException
     try:
         main()
