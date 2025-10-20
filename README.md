@@ -72,10 +72,12 @@ To set an admin PIN, run the app and enter 9783 at the main menu.
 ### File Structure
 ```
 ├── setup.py
-├── __init__.py
+├── .gitignore
 ├── cupc.py
 ├── LICENSE
 ├── README.md
+├── requirements.txt
+├── start.bat
 ```
 ### License
 This project is released under the MIT License. See `LICENSE` for details.
