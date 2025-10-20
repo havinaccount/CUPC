@@ -108,7 +108,8 @@ def recreate_user() -> bool:
     """
     try:
         empty_list: bytes = b'{}'
-        with open(USER_FILE, "wb") as file:
+        u_f = USER_FILE
+        with open(u_f, "wb") as file:
             file.write(empty_list)
         return True
     except Exception as e:
@@ -134,20 +135,22 @@ def load_users() -> dict:
     if users_cache is not None:
         return users_cache  # Return cached users if already loaded
 
-    file_exists: bool = USER_FILE.exists()
-    tamp_path: Path = USER_FILE.with_name(USER_FILE.name + ".tamp")
+    lock = USER_FILE_LOCK
+    user_file = USER_FILE
+    file_exists: bool = user_file.exists()
+    tamp_path: Path = user_file.with_name(USER_FILE.name + ".tamp")
 
     if users_cache:
         if not verify_user_file_integrity():
             logging.error(colorama.Fore.RED + "FATAL: User file integrity tampered" + colorama.Style.RESET_ALL)
             print("Warning: User file integrity is tampered. Resetting users.")
-            with USER_FILE_LOCK:
+            with lock:
                 if tamp_path.exists():
                     tamp_path.unlink()
                 if file_exists:
-                    USER_FILE.rename(tamp_path)
+                    user_file.rename(tamp_path)
                 else:
-                    logging.error(f"Cannot rename missing file: {USER_FILE}")
+                    logging.error(f"Cannot rename missing file: {user_file}")
                 success: bool = recreate_user()
                 if not success:
                     print(colorama.Fore.RED + "FATAL: Reset unsuccessful." + colorama.Style.RESET_ALL)
@@ -159,7 +162,7 @@ def load_users() -> dict:
     # Check for 'USER_FILE' existence
     if not file_exists:
         logging.warning("User file not found, starting with empty user list.")
-        with USER_FILE_LOCK:
+        with lock:
             success = recreate_user()  # Reset the USER_FILE
         if not success:
             print(colorama.Fore.RED + "FATAL: Reset unsuccessful" + colorama.Style.RESET_ALL)
@@ -168,7 +171,7 @@ def load_users() -> dict:
         return users_cache  # Flush users_cache
 
     try:
-        with USER_FILE_LOCK, open(USER_FILE, 'rb') as file: # With the following thread lock, open user_file
+        with lock, open(USER_FILE, 'rb') as file: # With the following thread lock, open user_file
             raw_data: bytes = file.read()
             temp_cache: dict[Any, Any] = orjson.loads(raw_data)
             if not isinstance(temp_cache, dict):
@@ -181,11 +184,11 @@ def load_users() -> dict:
         print(
             colorama.Fore.YELLOW + "Warning: User data file was corrupted, All accounts have been removed." + colorama.Style.RESET_ALL)
         try:
-            with USER_FILE_LOCK:
+            with lock:
                 if file_exists:
-                    USER_FILE.rename(
-                        USER_FILE.with_name(USER_FILE.name + ".corrupted"))  # Take a backup of the corrupted user_file
-                    logging.info(f"Corrupted user file backed up as '{USER_FILE}.corrupted'")
+                    user_file.rename(
+                        user_file.with_name(user_file.name + ".corrupted"))  # Take a backup of the corrupted user_file
+                    logging.info(f"Corrupted user file backed up as '{user_file}.corrupted'")
         except Exception as e:  # Catch the following exception
             logging.error(f"Failed to backup corrupted user file: {e}")
         finally:
@@ -223,7 +226,7 @@ def validate_users_dict(users_dict: dict) -> bool:
 
 
 # Save users to file
-def save_users(users_dict) -> Union[bool, None]:
+def save_users(users_dict: dict) -> Union[bool, None]:
     """
     The `save_users` function takes a dictionary of user data, validates it, creates a backup of
     existing user data, saves the new user data to a file, and hashes the data for integrity
@@ -239,12 +242,16 @@ def save_users(users_dict) -> Union[bool, None]:
     if not validate_users_dict(users_dict):
         raise ValueError("Invalid user data format")
 
+    lock = USER_FILE_LOCK
+    file_exists = USER_FILE.exists()
+    u_f = USER_FILE # User file
+
     # Backup the existing files
     try:
-        if USER_FILE.exists():
-            backup_path: Union[str, Path] = USER_FILE.with_name(f'{USER_FILE.stem}.{win_date}.bak')
-            shutil.copy(USER_FILE, backup_path)  # Create a backup of the USER_FILE
-            logging.info(f"Successfully backed up {USER_FILE} at {win_date}")
+        if file_exists:
+            backup_path: Union[str, Path] = u_f.with_name(f'{u_f.stem}.{win_date}.bak')
+            shutil.copy(u_f, backup_path)  # Create a backup of the USER_FILE
+            logging.info(f"Successfully backed up {u_f} at {win_date}")
     except Exception as e:
         logging.exception(f"Unexpected error when backing up user file: {e}")
         raise
@@ -252,7 +259,7 @@ def save_users(users_dict) -> Union[bool, None]:
     # Save new user data
     try:
         serialized_data: bytes = orjson.dumps(users_dict)
-        with USER_FILE_LOCK, open(USER_FILE, 'wb') as file: # With user file lock inbound
+        with lock, open(u_f, 'wb') as file: # With user file lock inbound
             file.write(serialized_data)  # Dump the sign-up info
         logging.info("User data saved.")
     except Exception as e:  # Catch the exception
@@ -260,9 +267,10 @@ def save_users(users_dict) -> Union[bool, None]:
         logging.error(f"Failed to save user data: {e}")
         return False
     # Hash and store integrity value
+    u_h = USER_HASH # User hash
     try:
         hasher_value: str = blake3(serialized_data).hexdigest()
-        with open(USER_HASH, 'wb') as hasher_file:
+        with open(u_h, 'wb') as hasher_file:
             hasher_file.write(hasher_value.encode('utf-8'))
         logging.info(f"User file hashed successfully {hasher_value}")
     except Exception as e:
@@ -364,7 +372,7 @@ def sign_up() -> Union[bool, None]:
 
 
 def safe_getpass(string: str = 'Enter Password: ',
-                 strip: bool = True) -> Union[str, bool, None]:  # Type hints are for contributions
+                 strip: bool = True) -> Union[str, bool, None]:  # Type hints are for showing the data expected
     """
     The function `safe_getpass` securely prompts the user for a password input, handling exceptions and
     optionally stripping whitespace.
@@ -393,7 +401,7 @@ def safe_getpass(string: str = 'Enter Password: ',
 # -------------------- Hash handling --------------------
 
 # Use this if you want to instantly raise an error.
-# if not isinstance(X, STR):
+# if not isinstance(x, str):
 #     raise ValueError("Your message")
 
 def _set_user_secret(username: str, secret: str,
@@ -502,16 +510,18 @@ def verify_user_file_integrity() -> bool:  # Checks the integrity of files
     file integrity is intact. If there is a file missing or an exception occurs during the integrity
     check process, it returns `False`.
     """
+    lock = USER_FILE_LOCK
     try:
         # Compute the hash of the USER_FILE
-        with USER_FILE_LOCK, open(USER_FILE, "rb") as file:
+        with lock, open(USER_FILE, "rb") as file:
             hasher: blake3 = blake3()
             for chunk in iter(lambda: file.read(8192), b""):
                 hasher.update(chunk)
             current_hash: str = hasher.hexdigest()
 
         # Read stored hash from USER_HASH
-        with open(USER_HASH, "r", encoding="utf-8") as hasher_file:  # encoding is basically normalizing the string
+        u_h = USER_HASH # User hash
+        with open(u_h, "r", encoding="utf-8") as hasher_file:  # encoding is basically normalizing the string
             stored_hash: str = hasher_file.read().strip()  # Reads the file and removes trailing whitespaces
 
         return current_hash == stored_hash
@@ -803,25 +813,29 @@ def admin_panel(username: str = "admin") -> bool:
 
             choice: Union[str, bool, None] = safe_input("Choose an option: ", strip=True)
 
+            u_f: Path = USER_FILE
+            lock = USER_FILE_LOCK
+            object_hash: Path = USER_HASH
+
             # Depending on the choice, Execute the following functions.
             match choice:
                 case "1":
-                    if not USER_FILE.exists():
+                    if not u_f.exists():
                         logging.warning("Admin tried to reset user file, but it was not found.")
                         print(colorama.Fore.YELLOW + "Warning: User file not found." + colorama.Style.RESET_ALL)
                         continue
 
                     try:
-                        USER_FILE.unlink()
-                        with USER_FILE_LOCK:
+                        u_f.unlink()
+                        with lock:
                             success: bool = recreate_user()
                         if success:
                             print("'users.json' has been reset.")
                             users_cache = {}
                             logging.info(f"Admin reset user file at {current_timestamp()}")
-                        if USER_HASH.exists():
-                            with USER_FILE_LOCK:
-                                USER_HASH.unlink()
+                        if object_hash.exists():
+                            with lock:
+                                object_hash.unlink()
                                 print("user.hash successfully deleted.")
                                 logging.info("Both user file and user hash were reset")
                         else:
