@@ -3,7 +3,7 @@ from setuptools.command.install import install
 import os
 import multiprocessing
 '''
-Setup file for CUPC, Please change the modules as CUPC update
+Setup file for CUPC, Please change the modules as CUPC update (If not updated.)
 '''
 class BuildWithNuitka(install):
     def run(self):
@@ -12,7 +12,7 @@ class BuildWithNuitka(install):
 
 setup(
     name='CUPC',
-    version='1.0.3',
+    version='1.0.4',
     author='havinacoount',
     description='''Constant Username and Password Checker (CUPC)
     is an simple project that tries to replicate a simple Login portal
@@ -25,6 +25,7 @@ setup(
         'getpass4',
         'blake3',
         'numpy',
+        'colorama',
     ],
     entry_points={
         'console_scripts': [

@@ -32,7 +32,7 @@ if "%choice%"=="1" (
     :: Check if CUPC.py exists
     if exist "CUPC.py" (
         echo [%date% %time%] Executing CUPC.py... >> "%LOGFILE%"
-        python "CUPC.py"
+        py -3.13 "CUPC.py"
         set "EXITCODE=%ERRORLEVEL%"
     ) else (
         echo [%date% %time%] ERROR: CUPC.py not found in %~dp0 >> "%LOGFILE%"

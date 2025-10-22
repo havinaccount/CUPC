@@ -32,28 +32,30 @@
 # Update 2: Logging is added for debugging program.
 # Update 3: Added time for avoiding brute-force attacks
 # Update 4: Added colorama for colored exception catching
-# Update 5: Limiting const choices, Example: 'const: str = value' means const is only getting strings
+# Update 5: Type hinting, For Example: 'const: str = value' means const is only getting strings
 
 # -------------------- Library --------------------
-
-from functools import lru_cache  # Using lru_cache to call 'normalize_username()' faster
-import getpass  # Using getpass to hide input
-import orjson  # Using orjson for faster read and write (ujson deprecated)
-import bcrypt  # Using bcrypt for hashing passwords
-from datetime import datetime  # Using datetime for the main program
-import logging  # Using logging to capture every event
-from random import randint  # Using random for the guess game
-import time  # Using time for preventing brute-force attacks
-import threading  # Using threading for more optimized thread usage
-import shutil  # Using shutil for creating file backups
-from blake3 import blake3  # For multithreaded cryptography and file hashing
-import unicodedata  # For username normalizations
-import sys  # For a cleaner and more stable code exit
-import numpy as np  # For fast calculations
-import colorama  # For coloring Exceptions
-from typing import Final, Callable, Any, Union, NoReturn, Optional # For hinting some of the variables (basically all of them)
-from pathlib import Path # Using path for a more modern choice.
-
+try:
+    from functools import lru_cache  # Using lru_cache to call 'normalize_username()' faster
+    import getpass  # Using getpass to hide input
+    import orjson  # Using orjson for faster read and write (ujson deprecated)
+    import bcrypt  # Using bcrypt for hashing passwords
+    from datetime import datetime  # Using datetime for the main program
+    import logging  # Using logging to capture every event
+    from random import randint  # Using random for the guess game
+    import time  # Using time for preventing brute-force attacks
+    import threading  # Using threading for more optimized thread usage
+    import shutil  # Using shutil for creating file backups
+    from blake3 import blake3  # For multithreaded cryptography and file hashing
+    import unicodedata  # For username normalizations
+    import sys  # For a cleaner and more stable code exit
+    import numpy as np  # For fast calculations
+    import colorama  # For coloring Exceptions
+    from typing import Final, Callable, Any, Union, NoReturn, \
+        Optional  # For hinting some of the variables (basically all of them)
+    from pathlib import Path  # Using path for a more modern choice.
+except ModuleNotFoundError as e:
+    print(f"One of the programs modules not found: {e}")
 # Following explanations may change depending on bugfixes and new features
 
 # AI Generated (line 60-65)
@@ -71,7 +73,9 @@ def current_timestamp() -> str:
 
 
 @lru_cache(maxsize=128)
-def normalize_username(username: str) -> str:
+def normalize_username(username: str) -> Optional[str]:
+    if isinstance(username, Optional[bool]):
+        return None
     if not isinstance(username, str):
         raise ValueError("Username must be a string")
     return unicodedata.normalize('NFKC', username.strip())
@@ -112,11 +116,14 @@ def recreate_user() -> bool:
         with open(u_f, "wb") as file:
             file.write(empty_list)
         return True
-    except Exception as e:
+    except orjson.JSONDecodeError as e:  # Catch a JSON decode error
         print(colorama.Fore.RED + "FATAL: USER_FILE is corrupted" + colorama.Style.RESET_ALL)
         logging.warning(f"Failed to recreate user file: {e}")
         return False
-
+    except FileNotFoundError as e:  # Check if the file even exists
+        print(colorama.Fore.RED + "FATAL: USER_FILE is not found" + colorama.Style.RESET_ALL)
+        logging.error(f"Failed to find user file: {e}")
+        return False
 
 # -------------------- JSON Handling --------------------
 
@@ -171,7 +178,7 @@ def load_users() -> dict:
         return users_cache  # Flush users_cache
 
     try:
-        with lock, open(USER_FILE, 'rb') as file: # With the following thread lock, open user_file
+        with lock, open(USER_FILE, 'rb') as file:  # With the following thread lock, open user_file
             raw_data: bytes = file.read()
             temp_cache: dict[Any, Any] = orjson.loads(raw_data)
             if not isinstance(temp_cache, dict):
@@ -202,6 +209,7 @@ def load_users() -> dict:
         logging.warning("User cache is empty after load.")
 
     return users_cache  # Flush the user_cache
+
 
 def validate_users_dict(users_dict: dict) -> bool:
     """
@@ -244,7 +252,7 @@ def save_users(users_dict: dict) -> Union[bool, None]:
 
     lock = USER_FILE_LOCK
     file_exists = USER_FILE.exists()
-    u_f = USER_FILE # User file
+    u_f = USER_FILE  # User file
 
     # Backup the existing files
     try:
@@ -252,14 +260,17 @@ def save_users(users_dict: dict) -> Union[bool, None]:
             backup_path: Union[str, Path] = u_f.with_name(f'{u_f.stem}.{win_date}.bak')
             shutil.copy(u_f, backup_path)  # Create a backup of the USER_FILE
             logging.info(f"Successfully backed up {u_f} at {win_date}")
-    except Exception as e:
+    except shutil.ReadError as e:
         logging.exception(f"Unexpected error when backing up user file: {e}")
+        raise
+    except FileNotFoundError as e:
+        logging.exception(f"User file not found while trying to backup: {e}")
         raise
 
     # Save new user data
     try:
         serialized_data: bytes = orjson.dumps(users_dict)
-        with lock, open(u_f, 'wb') as file: # With user file lock inbound
+        with lock, open(u_f, 'wb') as file:  # With user file lock inbound
             file.write(serialized_data)  # Dump the sign-up info
         logging.info("User data saved.")
     except Exception as e:  # Catch the exception
@@ -267,7 +278,7 @@ def save_users(users_dict: dict) -> Union[bool, None]:
         logging.error(f"Failed to save user data: {e}")
         return False
     # Hash and store integrity value
-    u_h = USER_HASH # User hash
+    u_h = USER_HASH  # User hash
     try:
         hasher_value: str = blake3(serialized_data).hexdigest()
         with open(u_h, 'wb') as hasher_file:
@@ -284,7 +295,7 @@ def save_users(users_dict: dict) -> Union[bool, None]:
 # -------------------- User Actions --------------------
 
 # Sign up function with PIN validation and hashing
-def sign_up() -> Union[bool, None]:
+def sign_up() -> Optional[bool]:
     # The above code is a Python function `sign_up()` that handles user sign-up process. It prompts the
     # user to choose a username and a PIN (numeric password) for account creation. Here is a breakdown of
     # the functionality:
@@ -299,7 +310,7 @@ def sign_up() -> Union[bool, None]:
         logging.info(f"Sign-up attempt for username: {username}")
 
         if username is None:  # Fix for using safe_input
-            print("Nothing entered, Pleases try again.")
+            print("Nothing entered, Please try again.")
             continue
 
         if username in users:  # Check if the username already exists
@@ -520,7 +531,7 @@ def verify_user_file_integrity() -> bool:  # Checks the integrity of files
             current_hash: str = hasher.hexdigest()
 
         # Read stored hash from USER_HASH
-        u_h = USER_HASH # User hash
+        u_h = USER_HASH  # User hash
         with open(u_h, "r", encoding="utf-8") as hasher_file:  # encoding is basically normalizing the string
             stored_hash: str = hasher_file.read().strip()  # Reads the file and removes trailing whitespaces
 
@@ -919,7 +930,7 @@ def hidden_function() -> bool | None:
 
             # Admin already exists — confirm overwrite
             choice: Union[str, bool, None] = safe_input("Admin PIN already exists. Overwrite? (y/n): ", lower=True,
-                                                   strip=True)
+                                                        strip=True)
             if choice == "n":
                 print("Admin Setup cancelled.")
                 return False
@@ -934,8 +945,7 @@ def hidden_function() -> bool | None:
                 print("Stored hash is damaged or empty")
                 return False
             if not isinstance(check, str) or not isinstance(stored_hash, str):
-                print(f"Invalid input or stored hash format. Got {type(check)} and {type(stored_hash)}")
-                return False
+                raise ValueError(f"Invalid input or stored hash format. Got {type(check)} and {type(stored_hash)}")
 
             if not bcrypt.checkpw(check.encode(), stored_hash.encode()):
                 print("Incorrect previous PIN. Setup aborted.")
@@ -979,7 +989,8 @@ def calc(username: str) -> None | bool:
 
             # Get numbers (they will be saved in 'numbers')
             while True:
-                user_input: Union[str, bool, None] = get_input("\nEnter numbers one by one (Type 'done' when finished): ")
+                user_input: Union[str, bool, None] = get_input(
+                    "\nEnter numbers one by one (Type 'done' when finished): ")
                 if user_input is None:
                     print("Nothing entered, Please try again.")
                     continue
@@ -1022,7 +1033,7 @@ def calc(username: str) -> None | bool:
             print(f"Subtraction = {subtraction(arr)}")
 
             again: Union[str, bool, None] = safe_input("\nDo you want to recalculate again? (y/n): \n", lower=True,
-                                                  strip=True)
+                                                       strip=True)
 
             if again is None:
                 print("Nothing entered, Please try again later.")
@@ -1139,7 +1150,7 @@ def guess_game(username: str) -> None:  # Can be changed for new return argument
                     print(colorama.Fore.YELLOW + "Warning: You should guess a number." + colorama.Style.RESET_ALL)
                     continue
             # Minimize the options
-            if guess < 1 or guess > 20: # type: ignore
+            if guess < 1 or guess > 20:  # type: ignore
                 print("You should pick a number between 1 and 20")
                 continue
             # Check for equality of target
@@ -1147,7 +1158,7 @@ def guess_game(username: str) -> None:  # Can be changed for new return argument
                 print("You won!")
                 logging.info(f"{username} Exited game successfully")
                 break
-            elif guess < target: # type: ignore
+            elif guess < target:  # type: ignore
                 attempt += 1
                 print(f"Pick a higher number, Attempts remaining {max_a - attempt}")
             elif guess > target:
@@ -1189,7 +1200,7 @@ def start_login() -> None:
 
 
 # -------------------- Main program ------------------
-def main() -> bool | None:
+def main() -> Optional[bool]:
     """
     The main function in the Python code handles user input for sign-up, login, and exit options, with
     error handling and logging implemented.
