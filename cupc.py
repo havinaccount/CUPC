@@ -65,6 +65,9 @@ try:
 except ModuleNotFoundError as e:
     print(f"One of the programs modules not found: {e}")
     raise
+except ImportError as e:
+    print(f"Failed to import modules: {e}")
+    raise
 # Following explanations may change depending on bugfixes and new features
 
 # AI Generated (line 60-65)
@@ -981,15 +984,19 @@ def admin_panel(username: str = "admin") -> bool:
                             logging.info(
                                 f"Admin reset user file at {current_timestamp()}"
                             )
-                        if object_hash.exists():
-                            with lock:
-                                object_hash.unlink()
-                                print("user.hash successfully deleted.")
-                                logging.info("Both user file and user hash were reset")
-                        else:
-                            raise RuntimeError(
-                                "Both User file and hash file reset failed."
+                        if not object_hash.exists():
+                            print(
+                                colorama.Fore.RED
+                                + "Hash file not available."
+                                + colorama.Fore.RED
                             )
+                            return False
+
+                        with lock:
+                            object_hash.unlink()
+                            print("user.hash successfully deleted.")
+                            logging.info("Both user file and user hash were reset")
+
                     except Exception as e:
                         print(
                             colorama.Fore.RED
@@ -1028,6 +1035,7 @@ def admin_panel(username: str = "admin") -> bool:
                 case _:
                     print("Invalid choice.")
                     logging.warning("Wrong choice made, repeating process.")
+                    continue
     except Exception as e:
         logging.error(f"Admin panel failed: {e}")
         return False

@@ -28,6 +28,8 @@ try:
 except ModuleNotFoundError as e:
     print(f"One of the programs modules not found: {e}")
     raise
+except ImportError as e:
+    print(f"Failed to Import modules: {e}")
 
 
 logging.basicConfig(
