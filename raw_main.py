@@ -29,7 +29,8 @@ except ModuleNotFoundError as e:
     print(f"One of the programs modules not found: {e}")
     raise
 except ImportError as e:
-    print(f"Failed to Import modules: {e}")
+    print(f"Failed to import modules: {e}")
+    raise
 
 
 logging.basicConfig(
@@ -63,7 +64,7 @@ attempts: int = 0
 delay: Callable[[int], int] = lambda attempt: 2**attempt
 users_cache: Union[dict, None] = None
 USER_FILE_LOCK: Final[threading.RLock] = threading.RLock()
-ADMIN_USER: Optional[str] = normalize_username("admin")
+ADMIN_USER: Final[Optional[str]] = normalize_username("admin")
 
 print(f"Using USER_FILE at : {USER_FILE}")
 print(f"Exists: {USER_FILE.exists()}")
@@ -464,8 +465,6 @@ def hash_pass(username: str, password: str | None) -> bool:
     password, and secret type "Password". If the password is not a string, it logs an error message and
     returns `False`.
     """
-    if password is None:
-        return False
     if not isinstance(password, str):
         logging.error(f"Expected password as str, got {type(password)}")
         return False
@@ -487,8 +486,6 @@ def hash_new_pin(username: str, new_pin: str) -> bool:
     function `_set_user_secret` with the `username`, `new_pin`, and a string "PIN", but the result of
     this call is not shown in the provided code snippet.
     """
-    if new_pin is None:
-        return False
     if not isinstance(new_pin, str):
         logging.error(f"Expected new_pin as str, got {type(new_pin)}")
         return False
@@ -507,12 +504,14 @@ def hash_admin_pin(password: str) -> bool:
     `_set_user_secret` function was successful in setting the admin PIN with the provided password, and
     `False` otherwise.
     """
-    if ADMIN_USER is None:
-        print("Admin user is not set")
+    a_d = ADMIN_USER
+    if a_d is None:
+        print("ADMIN_USER is not set.")
+        logging.error(f"Expected ADMIN_USER as str, got {type(a_d)}")
         return False
     if password is None:
-        return False
-    success: bool = _set_user_secret(ADMIN_USER, password, "admin PIN")
+        raise ValueError(f"Expected password as str, got {type(password)}")
+    success: bool = _set_user_secret(a_d, password, "admin PIN")
     if success:
         print("Admin PIN set successfully.")
     else:
@@ -878,15 +877,19 @@ def admin_panel(username: str = "admin") -> bool:
                             logging.info(
                                 f"Admin reset user file at {current_timestamp()}"
                             )
-                        if object_hash.exists():
-                            with lock:
-                                object_hash.unlink()
-                                print("user.hash successfully deleted.")
-                                logging.info("Both user file and user hash were reset")
-                        else:
-                            raise RuntimeError(
-                                "Both User file and hash file reset failed."
+                        if not object_hash.exists():
+                            print(
+                                colorama.Fore.RED
+                                + "Hash file not available."
+                                + colorama.Fore.RED
                             )
+                            return False
+
+                        with lock:
+                            object_hash.unlink()
+                            print("user.hash successfully deleted.")
+                            logging.info("Both user file and user hash were reset")
+
                     except Exception as e:
                         print(
                             colorama.Fore.RED
@@ -925,6 +928,7 @@ def admin_panel(username: str = "admin") -> bool:
                 case _:
                     print("Invalid choice.")
                     logging.warning("Wrong choice made, repeating process.")
+                    continue
     except Exception as e:
         logging.error(f"Admin panel failed: {e}")
         return False
