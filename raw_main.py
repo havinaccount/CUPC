@@ -1,30 +1,22 @@
 try:
-    from functools import (
-        lru_cache,
-    )
     import getpass
-    import orjson
-    import bcrypt
-    from datetime import datetime
     import logging
-    from random import randint
-    import time
-    import threading
     import shutil
-    from blake3 import blake3
-    import unicodedata
     import sys
-    import numpy as np
-    import colorama
-    from typing import (
-        Final,
-        Callable,
-        Any,
-        Union,
-        NoReturn,
-        Optional,
-    )
+    import threading
+    import time
+    import unicodedata
+    from datetime import datetime
+    from functools import lru_cache
     from pathlib import Path
+    from random import randint
+    from typing import Any, Callable, Final, NoReturn, Optional, Union
+
+    import bcrypt
+    import colorama
+    import numpy as np
+    import orjson
+    from blake3 import blake3
 except ModuleNotFoundError as e:
     print(f"One of the programs modules not found: {e}")
     raise

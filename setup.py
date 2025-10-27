@@ -1,8 +1,9 @@
 try:
+    import multiprocessing
+    import os
+
     from setuptools import setup
     from setuptools.command.install import install
-    import os
-    import multiprocessing
 except ModuleNotFoundError as e:
     print(f"One of the modules have not been found: {e}")
     raise

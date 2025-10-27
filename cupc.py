@@ -36,32 +36,33 @@
 
 # -------------------- Library --------------------
 try:
+    import getpass  # Using getpass to hide input
+    import logging  # Using logging to capture every event
+    import shutil  # Using shutil for creating file backups
+    import sys  # For a cleaner and more stable code exit
+    import threading  # Using threading for more optimized thread usage
+    import time  # Using time for preventing brute-force attacks
+    import unicodedata  # For username normalizations
+    from datetime import datetime  # Using datetime for the main program
     from functools import (
         lru_cache,
     )  # Using lru_cache to call 'normalize_username()' faster
-    import getpass  # Using getpass to hide input
-    import orjson  # Using orjson for faster read and write (ujson deprecated)
-    import bcrypt  # Using bcrypt for hashing passwords
-    from datetime import datetime  # Using datetime for the main program
-    import logging  # Using logging to capture every event
+    from pathlib import Path  # Using path for a more modern choice.
     from random import randint  # Using random for the guess game
-    import time  # Using time for preventing brute-force attacks
-    import threading  # Using threading for more optimized thread usage
-    import shutil  # Using shutil for creating file backups
-    from blake3 import blake3  # For multithreaded cryptography and file hashing
-    import unicodedata  # For username normalizations
-    import sys  # For a cleaner and more stable code exit
-    import numpy as np  # For fast calculations
-    import colorama  # For coloring Exceptions
-    from typing import (
-        Final,
-        Callable,
+    from typing import (  # For hinting some of the variables (basically all of them)
         Any,
-        Union,
+        Callable,
+        Final,
         NoReturn,
         Optional,
-    )  # For hinting some of the variables (basically all of them)
-    from pathlib import Path  # Using path for a more modern choice.
+        Union,
+    )
+
+    import bcrypt  # Using bcrypt for hashing passwords
+    import colorama  # For coloring Exceptions
+    import numpy as np  # For fast calculations
+    import orjson  # Using orjson for faster read and write (ujson deprecated)
+    from blake3 import blake3  # For multithreaded cryptography and file hashing
 except ModuleNotFoundError as e:
     print(f"One of the programs modules not found: {e}")
     raise
@@ -81,11 +82,17 @@ logging.basicConfig(
 
 # -------------------- Variables --------------------
 def current_timestamp() -> str:
+    """
+    Retrives current datetime and returns the data assosiated with it.
+    """
     return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 
 @lru_cache(maxsize=128)
 def normalize_username(username: str) -> Optional[str]:
+    """
+    Normalizes usernmae so no unknown characters can be assigned as username (or an string)
+    """
     if isinstance(username, bool):
         return None
     if not isinstance(username, str):
@@ -100,7 +107,6 @@ USER_HASH: Path = BASE_DIR / "users.hash"
 
 # App config
 MAX_ATTEMPTS: Final[int] = 5
-attempts: int = 0
 delay: Callable[[int], int] = lambda attempt: 2**attempt
 users_cache: Union[dict, None] = None
 USER_FILE_LOCK: Final[threading.RLock] = threading.RLock()
