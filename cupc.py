@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding=utf-8 -*-
+
 #           _____                    _____                    _____                    _____
 #          /\*   \                  /\*   \                  /\*   \                  /\    \
 #         /::\    \                /::\____\                /::\    \                /::\    \
@@ -21,13 +22,14 @@
 #        \:::\____\               \::::/    /                                       \:::\____\
 #         \::/    /                \::/    /                                         \::/    /
 #          \/____/                  \/____/                                           \/____/
+"""
+a simple password checking python code.
 
-# a simple password checking python code.
+CUPC stands for 'Constant Username and Password Checking'
 
-# CUPC stands for 'Constant Username and Password Checking'
-
-# CUPC is a simple password checker written in python. this is just an example and nothing else.
-# Note: this code is not protected from brute force, be warned.
+CUPC is a simple password checker written in python. this is just an example and nothing else.
+Note: this code is not protected from brute force, be warned.
+"""
 # Update 1: Password now can be hashed easily.
 # Update 2: Logging is added for debugging program.
 # Update 3: Added time for avoiding brute-force attacks
@@ -53,7 +55,6 @@ try:
         Any,
         Callable,
         Final,
-        NoReturn,
         Optional,
         Union,
     )
@@ -141,7 +142,7 @@ def recreate_user() -> bool:
             + "FATAL: USER_FILE is corrupted"
             + colorama.Style.RESET_ALL
         )
-        logging.warning(f"Failed to recreate user file: {e}")
+        logging.warning("Failed to recreate user file: %s", e)
         return False
     except FileNotFoundError as e:  # Check if the file even exists
         print(
@@ -149,7 +150,7 @@ def recreate_user() -> bool:
             + "FATAL: USER_FILE is not found"
             + colorama.Style.RESET_ALL
         )
-        logging.error(f"Failed to find user file: {e}")
+        logging.error("Failed to find user file: %s", e)
         return False
 
 
@@ -178,11 +179,7 @@ def load_users() -> dict:
 
     if users_cache:
         if not verify_user_file_integrity():
-            logging.error(
-                colorama.Fore.RED
-                + "FATAL: User file integrity tampered"
-                + colorama.Style.RESET_ALL
-            )
+            logging.error("FATAL: User file integrity tampered")
             print("Warning: User file integrity is tampered. Resetting users.")
             with lock:
                 if tamp_path.exists():
@@ -190,7 +187,7 @@ def load_users() -> dict:
                 if file_exists:
                     user_file.rename(tamp_path)
                 else:
-                    logging.error(f"Cannot rename missing file: {user_file}")
+                    logging.error("Cannot rename missing file: %s", user_file)
                 success: bool = recreate_user()
                 if not success:
                     print(
@@ -234,27 +231,24 @@ def load_users() -> dict:
             users_cache = temp_cache
             logging.info("User file loaded successfully.")
     except orjson.JSONDecodeError as e:  # Catch the USER_FILE Corruption
-        logging.error(f"User file is corrupted: {e}\n\n Starting with empty user list.")
+        logging.error("User file is corrupted: %s\n\n Starting with empty user list.", e)
         print(
             colorama.Fore.YELLOW
             + "Warning: User data file was corrupted, All accounts have been removed."
             + colorama.Style.RESET_ALL
         )
-        try:
-            with lock:
-                if file_exists:
-                    user_file.rename(
-                        user_file.with_name(user_file.name + ".corrupted")
-                    )  # Take a backup of the corrupted user_file
-                    logging.info(
-                        f"Corrupted user file backed up as '{user_file}.corrupted'"
-                    )
-        except Exception as e:  # Catch the following exception
-            logging.error(f"Failed to backup corrupted user file: {e}")
-        finally:
-            users_cache = {}
+        
+        with lock:
+            if file_exists:
+                user_file.rename(
+                    user_file.with_name(user_file.name + ".corrupted")
+                )  # Take a backup of the corrupted user_file
+                logging.info(
+                    "Corrupted user file backed up as '%s.corrupted'", user_file
+                )
+
     except Exception as e:  # Catch another exception
-        logging.error(f"Failed to load user file {e}")
+        logging.error("Failed to load user file %s", e)
         print(
             colorama.Fore.RED
             + "FATAL: System error, Starting with empty user list."
@@ -265,7 +259,8 @@ def load_users() -> dict:
     if not users_cache:
         logging.warning("User cache is empty after load.")
 
-    return users_cache  # Flush the user_cache
+    # Flush the user_cache
+    return users_cache # type: ignore
 
 
 def validate_users_dict(users_dict: dict) -> bool:
@@ -287,7 +282,7 @@ def validate_users_dict(users_dict: dict) -> bool:
                 return False
         return True
     except Exception as e:
-        logging.error(f"Validation failed: {e}")
+        logging.error("Validation failed: %s", e)
         return False
 
 
@@ -317,12 +312,12 @@ def save_users(users_dict: dict) -> Union[bool, None]:
         if file_exists:
             backup_path: Union[str, Path] = u_f.with_name(f"{u_f.stem}.{win_date}.bak")
             shutil.copy(u_f, backup_path)  # Create a backup of the USER_FILE
-            logging.info(f"Successfully backed up {u_f} at {win_date}")
+            logging.info("Successfully backed up %s at %s", u_f, win_date)
     except shutil.ReadError as e:
-        logging.exception(f"Unexpected error when backing up user file: {e}")
+        logging.exception("Unexpected error when backing up user file: %s", e)
         raise
     except FileNotFoundError as e:
-        logging.exception(f"User file not found while trying to backup: {e}")
+        logging.exception("User file not found while trying to backup: %s", e)
         raise
 
     # Save new user data
@@ -337,7 +332,7 @@ def save_users(users_dict: dict) -> Union[bool, None]:
             + "FATAL: Error saving user data. Please try again."
             + colorama.Style.RESET_ALL
         )
-        logging.error(f"Failed to save user data: {e}")
+        logging.error("Failed to save user data: %s", e)
         return False
     # Hash and store integrity value
     u_h = USER_HASH  # User hash
@@ -345,14 +340,14 @@ def save_users(users_dict: dict) -> Union[bool, None]:
         hasher_value: str = blake3(serialized_data).hexdigest()
         with open(u_h, "wb") as hasher_file:
             hasher_file.write(hasher_value.encode("utf-8"))
-        logging.info(f"User file hashed successfully {hasher_value}")
-    except Exception as e:
+        logging.info("User file hashed successfully %s", hasher_value)
+    except FileNotFoundError as e:
         print(
             colorama.Fore.RED
             + "FATAL: Error saving user data. Please try again."
             + colorama.Style.RESET_ALL
         )
-        logging.error(f"Failed to save user data or hash: {e}")
+        logging.error("Failed to save user data or hash: %s", e)
         return False
 
     return True
@@ -375,7 +370,7 @@ def sign_up() -> Optional[bool]:
             safe_input("Choose a username: ", strip=True)
         )  # Make a str username const
 
-        logging.info(f"Sign-up attempt for username: {username}")
+        logging.info("Sign-up attempt for username: %s", username)
 
         if username is None:  # Fix for using safe_input
             print("Nothing entered, Please try again.")
@@ -383,7 +378,7 @@ def sign_up() -> Optional[bool]:
 
         if username in users:  # Check if the username already exists
             print("Username already exists. Please choose a different one.")
-            logging.warning(f"Sign-up failed: Username '{username}' already exists.")
+            logging.warning("Sign-up failed: Username '%s' already exists.", username)
             continue
 
         if not username:  # Check if anything entered
@@ -452,7 +447,7 @@ def sign_up() -> Optional[bool]:
         else:
             return False
 
-        logging.info(f"New user '{username}' registered.")  # Log the info
+        logging.info("New user '%s' registered.", username)  # Log the info
         return True
 
 
@@ -479,9 +474,9 @@ def safe_getpass(
         if not value:
             return None
         return value.strip() if strip else value  # Check if strip is True (bool)
-    except Exception as e:
+    except EOFError as e:
         print("Exiting or error.")
-        logging.error(f"Password interception: {e}")
+        logging.error("Password interception: %s", e)
         return False
 
 
@@ -519,10 +514,10 @@ def _set_user_secret(
         hashed: bytes = bcrypt.hashpw(secret.encode("utf-8"), bcrypt.gensalt(rounds=12))
         users[username] = hashed.decode("utf-8")
         save_users(users)
-        logging.info(f"{username} {label} updated successfully.")
+        logging.info("%s %s updated successfully.", label, username)
         return True
     except Exception as e:
-        logging.error(f"Failed to set {label} for {username}: {e}")
+        logging.error("Failed to set %s for %s: %s", label, username, e)
         return False
 
 
@@ -543,11 +538,12 @@ def hash_pass(username: str, password: str | None) -> bool:
     returns `False`.
     """
     if not isinstance(password, str):
-        logging.error(f"Expected password as str, got {type(password)}")
+        logging.error("Expected password as str, got %s", type(password))
         return False
     return _set_user_secret(
         username, password, "Password"
-    )  # This is the first usage of '_set_user_secret', Using the same capability may add overhead, That's why we use same function
+    )  # This is the first usage of '_set_user_secret'
+    # Using the same capability may add overhead, That's why we use same function
 
 
 def hash_new_pin(username: str, new_pin: str) -> bool:
@@ -566,7 +562,7 @@ def hash_new_pin(username: str, new_pin: str) -> bool:
     this call is not shown in the provided code snippet.
     """
     if not isinstance(new_pin, str):
-        logging.error(f"Expected new_pin as str, got {type(new_pin)}")
+        logging.error("Expected new_pin as str, got %s", type(new_pin))
         return False
     return _set_user_secret(username, new_pin, "PIN")
 
@@ -586,10 +582,10 @@ def hash_admin_pin(password: str) -> bool:
     a_d = ADMIN_USER
     if a_d is None:
         print("ADMIN_USER is not set.")
-        logging.error(f"Expected ADMIN_USER as str, got {type(a_d)}")
+        logging.error("Expected ADMIN_USER as str, got %s", type(a_d))
         return False
     if password is None:
-        raise ValueError(f"Expected password as str, got {type(password)}")
+        raise ValueError("Expected password as str, got %s", type(password))
     success: bool = _set_user_secret(a_d, password, "admin PIN")
     if success:
         print("Admin PIN set successfully.")
@@ -631,10 +627,10 @@ def verify_user_file_integrity() -> bool:  # Checks the integrity of files
 
         return current_hash == stored_hash
     except FileNotFoundError as e:
-        logging.warning(f"Integrity check failed, missing file: {e.filename}")
+        logging.warning("Integrity check failed, missing file: %s", e.filename)
         return False
     except Exception as e:
-        logging.warning(f"Integrity check failed: {e}")
+        logging.warning("Integrity check failed: %s", e)
         return False
 
 
@@ -688,7 +684,7 @@ def safe_input(
         return None if not value else value
     except (KeyboardInterrupt, EOFError):
         print("\n\nInput stream closed. Cannot read input.\n")
-        logging.error(f"EOFError: Input failed")
+        logging.error("EOFError: Input failed")
         return False  # or break, or fallback logic
 
 
@@ -746,7 +742,7 @@ def login() -> bool:
         try:
             stored_hash = stored_hash.encode()
         except Exception as e:
-            logging.error(f"Failed to encode stored hash for '{username}': {e}")
+            logging.error("Failed to encode stored hash for '%s': %s", username, e)
             print(
                 colorama.Fore.RED
                 + "FATAL: Unexpected error occurred. Please contact support."
@@ -787,7 +783,7 @@ def login() -> bool:
         if bcrypt.checkpw(
             password.encode(), stored_hash
         ):  # If the encoded password that we received matches our stored hash, log in.
-            logging.info(f"User '{username}' logged in successfully.")
+            logging.info("User '%s' logged in successfully.", username)
 
             if (
                 username == "admin"
@@ -891,7 +887,7 @@ def change_pin(username: str) -> Union[bool, None]:
         print("User file not found")
         return False
 
-    logging.info(f"{username} requests a PIN change.")
+    logging.info("%s requests a PIN change.", username)
 
     while True:
 
@@ -918,7 +914,7 @@ def change_pin(username: str) -> Union[bool, None]:
             username not in users
         ):  # If username got corrupt in changing PIN section, Stop the process.
             print("User not found.")
-            logging.warning(f"PIN change failed: {username} not found")
+            logging.warning("PIN change failed: %s not found", username)
         if not isinstance(new_pin, str):
             print("Invalid PIN Input")
             return False
@@ -988,7 +984,7 @@ def admin_panel(username: str = "admin") -> bool:
                             print("'users.json' has been reset.")
                             users_cache = {}
                             logging.info(
-                                f"Admin reset user file at {current_timestamp()}"
+                                "Admin reset user file at %s", current_timestamp()
                             )
                         if not object_hash.exists():
                             print(
@@ -1009,7 +1005,7 @@ def admin_panel(username: str = "admin") -> bool:
                             + "FATAL: User file reset failed. Exiting program."
                             + colorama.Style.RESET_ALL
                         )
-                        logging.error(str(e))
+                        logging.error('%s', e)
                         sys.exit(1)
                 case "4":
                     print("Goodbye!")
@@ -1043,7 +1039,7 @@ def admin_panel(username: str = "admin") -> bool:
                     logging.warning("Wrong choice made, repeating process.")
                     continue
     except Exception as e:
-        logging.error(f"Admin panel failed: {e}")
+        logging.error("Admin panel failed: %s", e)
         return False
 
     return True
@@ -1135,7 +1131,7 @@ def hidden_function() -> bool | None:
             return False
 
     except Exception as e:
-        logging.error(f"Admin setup failed: {e}")
+        logging.error("Admin setup failed: %s", e)
         return False
 
 
@@ -1149,7 +1145,7 @@ def get_input(prompt: str) -> Union[str, bool, None]:  # Type hinting for get_in
             return value if value else None
     except (KeyboardInterrupt, EOFError):
         print("\n\nInput stream closed. Cannot read input.\n")
-        logging.error(f"EOFError: Input failed")
+        logging.error("EOFError: Input failed")
         return False  # or break, or fallback logic
 
 
@@ -1157,7 +1153,7 @@ def get_input(prompt: str) -> Union[str, bool, None]:  # Type hinting for get_in
 def calc(username: str) -> None | bool:
     """A Simple, interactive calculator"""
     print(f"Welcome {username}")
-    logging.info(f"User {username} accessed calculator.")
+    logging.info("User %s accessed calculator.", username)
     while True:
         try:
             raw_input: list[str] = []
@@ -1170,14 +1166,14 @@ def calc(username: str) -> None | bool:
                 if user_input is None:
                     print("Nothing entered, Please try again.")
                     continue
-                if user_input == False:
+                if user_input is False:
                     print("Aborting Calculator")
                     return None
 
                 if not isinstance(user_input, str):
                     return False
-                else:
-                    normalized: str = user_input.lower().strip()
+
+                normalized: str = user_input.lower().strip()
 
                 if normalized == "done":
                     break
@@ -1227,7 +1223,7 @@ def calc(username: str) -> None | bool:
                 + "FATAL: An error occurred. Please try again."
                 + colorama.Style.RESET_ALL
             )
-            logging.error(f"Calculation failed: {e}")
+            logging.error("Calculation failed: %s", e)
             return None
 
     return True
@@ -1317,7 +1313,7 @@ def guess_game(username: str) -> None:  # Can be changed for new return argument
     max_a: Final[int] = 5  # Give n attempt amount
     attempt = 0
     target: Final[int] = randint(1, 20)
-    logging.info(f"{username} Playing game.")
+    logging.info("%s Playing game.", username)
 
     try:
         while True:
@@ -1351,14 +1347,14 @@ def guess_game(username: str) -> None:  # Can be changed for new return argument
                 print("You should pick a number between 1 and 20")
                 continue
             # Check for equality of target
-            if guess == target:
+            if guess == target: # type: ignore
                 print("You won!")
-                logging.info(f"{username} Exited game successfully")
+                logging.info("%s Exited game successfully", username)
                 break
-            elif guess < target:  # type: ignore
+            if guess < target:  # type: ignore
                 attempt += 1
                 print(f"Pick a higher number, Attempts remaining {max_a - attempt}")
-            elif guess > target:
+            if guess > target: # type: ignore
                 attempt += 1
                 print(
                     f"You should pick a smaller number. Attempts remaining {max_a - attempt}"
@@ -1366,12 +1362,12 @@ def guess_game(username: str) -> None:  # Can be changed for new return argument
 
             if attempt == 5:  # Check for attempt count
                 print(f"You lost {username}, The number was {target}")
-                logging.info(f"{username} Lost the game after {max_a}")
+                logging.info("%s Lost the game after %s", username, max_a)
                 break
     except Exception as e:
-        logging.error(f"Game failed: {e}")
+        logging.error("Game failed: %s", e)
     except KeyboardInterrupt:
-        return None
+        return
 
 
 # Log testing, Hanging test.
@@ -1380,6 +1376,10 @@ def guess_game(username: str) -> None:  # Can be changed for new return argument
 
 
 def warm_up_terminal() -> None:
+    """
+    The `warm_up_terminal` function prompts the user to press enter to continue using a yellow-colored
+    message in the terminal.
+    """
     # noinspection PyBroadException
     try:
         getpass.getpass(
@@ -1392,12 +1392,19 @@ def warm_up_terminal() -> None:
 
 
 def start_signup() -> None:
+    """
+    The function `start_signup` initiates the sign-up process by printing a message and then calling the
+    `sign_up` function after a short delay.
+    """
     print("Starting sign-up")
     time.sleep(0.5)
     sign_up()
 
 
 def start_login() -> None:
+    """
+    The function `start_login` initiates the login process after printing a message and a short delay.
+    """
     print("Starting Login")
     time.sleep(0.5)
     login()
@@ -1417,11 +1424,11 @@ def main() -> Optional[bool]:
     warm_up_terminal()
     print(EXP, current_timestamp())
 
-    actions: dict[str, Callable[[], Union[None, NoReturn, bool]]] = {
+    actions = {
         "1": start_signup,
         "2": start_login,
         "3": lambda: (print("\nExiting\n") or sys.exit()),
-        "9783": lambda: hidden_function(),
+        "9783": hidden_function(),
     }
 
     while True:
@@ -1463,7 +1470,7 @@ def launch():
     try:
         main()
     except Exception as e:
-        logging.exception(f"FATAL: Unexpected crash in main execution: {e}")
+        logging.exception("FATAL: Unexpected crash in main execution: %s", e)
         print(
             colorama.Fore.RED
             + "\nAn unexpected error occurred. Please check the log file for details.\n"
