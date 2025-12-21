@@ -30,8 +30,6 @@ CUPC is a simple Python-based password checker that allows users to sign up and 
 
 - `orjson` (optional for performance)
 
-- `getpass4`
-
 - `numpy` (For Fast calculations)
 
 - `blake3`
@@ -39,7 +37,7 @@ CUPC is a simple Python-based password checker that allows users to sign up and 
 ## Installation
 
 ```
-pip install bcrypt orjson numpy blake3 getpass4
+pip install bcrypt orjson numpy blake3
 ```
 ## Run the App
 ```
