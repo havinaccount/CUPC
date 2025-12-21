@@ -1428,7 +1428,7 @@ def main() -> Optional[bool]:
         "1": start_signup,
         "2": start_login,
         "3": lambda: (print("\nExiting\n") or sys.exit()),
-        "9783": hidden_function(),
+        "9783": lambda: hidden_function(),
     }
 
     while True:
