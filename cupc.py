@@ -34,7 +34,7 @@ Note: this code is not protected from brute force, be warned.
 # Update 2: Logging is added for debugging program.
 # Update 3: Added time for avoiding brute-force attacks
 # Update 4: Added colorama for colored exception catching
-# Update 5: Type hinting, For Example: 'const: str = value' means const is only getting strings
+# Update 5: Type hinting, For Example: 'const: str = value' means constant is only getting strings
 
 # -------------------- Library --------------------
 try:
@@ -231,13 +231,15 @@ def load_users() -> dict:
             users_cache = temp_cache
             logging.info("User file loaded successfully.")
     except orjson.JSONDecodeError as e:  # Catch the USER_FILE Corruption
-        logging.error("User file is corrupted: %s\n\n Starting with empty user list.", e)
+        logging.error(
+            "User file is corrupted: %s\n\n Starting with empty user list.", e
+        )
         print(
             colorama.Fore.YELLOW
             + "Warning: User data file was corrupted, All accounts have been removed."
             + colorama.Style.RESET_ALL
         )
-        
+
         with lock:
             if file_exists:
                 user_file.rename(
@@ -260,7 +262,7 @@ def load_users() -> dict:
         logging.warning("User cache is empty after load.")
 
     # Flush the user_cache
-    return users_cache # type: ignore
+    return users_cache  # type: ignore
 
 
 def validate_users_dict(users_dict: dict) -> bool:
@@ -365,7 +367,6 @@ def sign_up() -> Optional[bool]:
     users: dict[Any, Any] = load_users()
 
     while True:
-
         username: Union[str, bool, None] = normalize_username(
             safe_input("Choose a username: ", strip=True)
         )  # Make a str username const
@@ -753,7 +754,6 @@ def login() -> bool:
     attempt: int = 0  # Make an int const
 
     while attempt < MAX_ATTEMPTS:
-
         password: Union[str, bool, None] = safe_getpass(
             "PIN (Pass is hidden): "
         )  # Getting password
@@ -890,7 +890,6 @@ def change_pin(username: str) -> Union[bool, None]:
     logging.info("%s requests a PIN change.", username)
 
     while True:
-
         new_pin: Union[str, bool, None] = safe_getpass(
             "Enter new PIN: "
         )  # Ask the user for the following new PIN
@@ -918,9 +917,7 @@ def change_pin(username: str) -> Union[bool, None]:
         if not isinstance(new_pin, str):
             print("Invalid PIN Input")
             return False
-        if (
-            not new_pin.isdigit()
-        ):  # If all the requirements are fulfilled, change the pin using hashing mechanic
+        if not new_pin.isdigit():  # If all the requirements are fulfilled, change the pin using hashing mechanic
             print("Password must contain only digits.")
             return False
 
@@ -1005,7 +1002,7 @@ def admin_panel(username: str = "admin") -> bool:
                             + "FATAL: User file reset failed. Exiting program."
                             + colorama.Style.RESET_ALL
                         )
-                        logging.error('%s', e)
+                        logging.error("%s", e)
                         sys.exit(1)
                 case "4":
                     print("Goodbye!")
@@ -1317,7 +1314,6 @@ def guess_game(username: str) -> None:  # Can be changed for new return argument
 
     try:
         while True:
-
             raw_guess: Union[str, bool, None] = safe_input(
                 "Guess a number (1-20): ", strip=True
             )
@@ -1347,14 +1343,14 @@ def guess_game(username: str) -> None:  # Can be changed for new return argument
                 print("You should pick a number between 1 and 20")
                 continue
             # Check for equality of target
-            if guess == target: # type: ignore
+            if guess == target:  # type: ignore
                 print("You won!")
                 logging.info("%s Exited game successfully", username)
                 break
             if guess < target:  # type: ignore
                 attempt += 1
                 print(f"Pick a higher number, Attempts remaining {max_a - attempt}")
-            if guess > target: # type: ignore
+            if guess > target:  # type: ignore
                 attempt += 1
                 print(
                     f"You should pick a smaller number. Attempts remaining {max_a - attempt}"
