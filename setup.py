@@ -35,7 +35,6 @@ setup(
     install_requires=[
         "bcrypt",
         "orjson",
-        "getpass4",
         "blake3",
         "numpy",
         "colorama",
