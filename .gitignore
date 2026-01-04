@@ -1,2 +1,5 @@
+# Cache Directories
 __pycache__/
+
+# Random stuff
 compiler.py
