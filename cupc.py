@@ -74,7 +74,7 @@ except ImportError as e:
 
 # AI Generated (line 60-65)
 logging.basicConfig(
-    filename="ex.log",
+    filename="runtime.log",
     level=logging.DEBUG,
     format="%(asctime)s - %(levelname)s - %(funcName)s - Line %(lineno)d - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
@@ -237,7 +237,7 @@ def load_users() -> dict:
             + "Warning: User data file was corrupted, All accounts have been removed."
             + colorama.Style.RESET_ALL
         )
-        
+
         with lock:
             if file_exists:
                 user_file.rename(
