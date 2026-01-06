@@ -1,6 +1,7 @@
 # CUPC
 CUPC – Constant Username and Password Checking
-CUPC is a simple Python-based password checker that allows users to sign up and log in using a numeric PIN. It demonstrates basic user authentication, password hashing with `bcrypt`, and includes a built-in calculator for logged-in users.
+
+CUPC is a simple Python-based password checker that allows users to sign up and log in using a numeric PIN. It demonstrates basic user authentication, password hashing with `bcrypt`, and includes a built-in panel for logged-in users.
  
 > [!CAUTION] 
 > This project is for educational purposes only. It is not secure against brute-force attacks or suitable for production use.
@@ -16,7 +17,7 @@ CUPC is a simple Python-based password checker that allows users to sign up and 
 
 - Hidden admin setup trigger
 
-- Simple calculator for logged-in users
+- Simple Panel for normal logged-in users
 
 - User File Hashing for anti-tampering
 
@@ -30,16 +31,16 @@ CUPC is a simple Python-based password checker that allows users to sign up and 
 
 - `orjson` (optional for performance)
 
-- `getpass4`
-
 - `numpy` (For Fast calculations)
 
 - `blake3`
 
+- `colorama`
+
 ## Installation
 
 ```
-pip install bcrypt orjson numpy blake3 getpass4
+pip install bcrypt orjson numpy blake3 colorama
 ```
 ## Run the App
 ```
@@ -59,6 +60,14 @@ pyinstaller main.py --onefile --optimize=2 --clean --noupx
 nuitka main.py --standalone --onefile --lto=yes --remove-output --output-dir=dist --mingw64
 ```
 - MSVC is not tested but recommended
+
+- And for linux:
+```
+nuitka main.py --standalone --onefile --lto=yes --output-dir=dist
+```
+> [!IMPORTANT]
+> You will need `gcc` or `clang` to compile the program on linux
+
 ### Security Notes
 - PINs are hashed, and the app does limit login attempts.
 
