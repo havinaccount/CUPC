@@ -108,7 +108,7 @@ USER_HASH: Path = BASE_DIR / "users.hash"
 
 # App config
 MAX_ATTEMPTS: Final[int] = 5
-delay: Callable[[int], int] = lambda attempt: 2**attempt
+delay: Callable[[int], int] = lambda attempt: 2**attempt  # type: ignore
 users_cache: Union[dict, None] = None
 USER_FILE_LOCK: Final[threading.RLock] = threading.RLock()
 ADMIN_USER: Final[Optional[str]] = normalize_username("admin")
