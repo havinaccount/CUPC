@@ -40,6 +40,8 @@ Note: this code is not protected from brute force, be warned.
 try:
     import getpass  # Using getpass to hide input
     import logging  # Using logging to capture every event
+    import os
+    import subprocess
     import shutil  # Using shutil for creating file backups
     import sys  # For a cleaner and more stable code exit
     import threading  # Using threading for more optimized thread usage
@@ -84,7 +86,7 @@ logging.basicConfig(
 # -------------------- Variables --------------------
 def current_timestamp() -> str:
     """
-    Retrives current datetime and returns the data assosiated with it.
+    Retrieves current datetime and returns the data associated with it.
     """
     return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
@@ -92,7 +94,7 @@ def current_timestamp() -> str:
 @lru_cache(maxsize=128)
 def normalize_username(username: str) -> Optional[str]:
     """
-    Normalizes usernmae so no unknown characters can be assigned as username (or an string)
+    Normalizes username so no unknown characters can be assigned as username (or an string)
     """
     if isinstance(username, bool):
         return None
@@ -175,7 +177,7 @@ def load_users() -> dict:
     lock = USER_FILE_LOCK
     user_file = USER_FILE
     file_exists: bool = user_file.exists()
-    tamp_path: Path = user_file.with_name(USER_FILE.name + ".tamp")
+    tamp_path: Path = user_file.with_name(user_file.name + ".tamp")
 
     if users_cache:
         if not verify_user_file_integrity():
@@ -742,7 +744,7 @@ def login() -> bool:
     if isinstance(stored_hash, str):
         try:
             stored_hash = stored_hash.encode()
-        except Exception as e:
+        except UnicodeDecodeError as e:
             logging.error("Failed to encode stored hash for '%s': %s", username, e)
             print(
                 colorama.Fore.RED
@@ -817,7 +819,7 @@ def exits() -> bool:
 
 
 # User Panel
-def user_panel(username: str) -> bool | None:
+def user_panel(username: str, do_not_show_status: bool = False) -> bool | None:
     """
     The function `user_panel` takes a username as input, displays a menu of actions for the user to
     choose from, and executes the corresponding action based on the user's choice until the user decides
@@ -828,7 +830,8 @@ def user_panel(username: str) -> bool | None:
     panel by performing actions such as calculations, changing PIN, playing games, and exiting the panel
     :return: The `user_panel` function returns a boolean value or None.
     """
-    print("Login successful!")
+    if do_not_show_status is False:    
+        print("Login successful!")
 
     actions = {
         "1": lambda: calc(username),
@@ -917,7 +920,9 @@ def change_pin(username: str) -> Union[bool, None]:
         if not isinstance(new_pin, str):
             print("Invalid PIN Input")
             return False
-        if not new_pin.isdigit():  # If all the requirements are fulfilled, change the pin using hashing mechanic
+        if (
+            not new_pin.isdigit()
+        ):  # If all the requirements are fulfilled, change the pin using hashing mechanic
             print("Password must contain only digits.")
             return False
 
@@ -1196,7 +1201,7 @@ def calc(username: str) -> None | bool:
             if len(numbers) == 2:
                 print(f"Remainder = {remainder(numbers)}")
             else:
-                print("For remainder, You need enter two numbers only.")
+                print("For remainder, You need to enter two numbers only.")
             print(f"Average = {average(arr)}")
             print(f"Addition = {addition(arr)}")
             print(f"Subtraction = {subtraction(arr)}")
@@ -1320,7 +1325,7 @@ def guess_game(username: str) -> None:  # Can be changed for new return argument
 
             if not raw_guess:
                 print("Aborting game.")
-                break
+                user_panel(username, do_not_show_status=True)
 
             if raw_guess is not None:
                 pass
@@ -1344,9 +1349,12 @@ def guess_game(username: str) -> None:  # Can be changed for new return argument
                 continue
             # Check for equality of target
             if guess == target:  # type: ignore
+                subprocess.run(["clear" if os.name == "posix" else "cls"], shell=True)
                 print("You won!")
+                safe_input("Press any key to continue...")
                 logging.info("%s Exited game successfully", username)
-                break
+                subprocess.run(["clear" if os.name == "posix" else "cls"], shell=True)
+                user_panel(username, do_not_show_status=True)
             if guess < target:  # type: ignore
                 attempt += 1
                 print(f"Pick a higher number, Attempts remaining {max_a - attempt}")
@@ -1475,7 +1483,7 @@ def launch():
         sys.exit(1)
     except KeyboardInterrupt:
         print("\nGoodbye!")
-        sys.exit()
+        sys.exit(0)
 
 
 # Run the program

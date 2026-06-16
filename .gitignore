@@ -3,3 +3,9 @@ __pycache__/
 
 # Random stuff
 compiler.py
+runtime.log
+users.hash
+users.json
+users.*.bak
+/.vscode
+
